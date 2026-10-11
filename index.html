@@ -1,0 +1,3121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zonsondergang aan de Pier</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: monospace; }
+        canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+        #info {
+            position: absolute; top: 10px; left: 10px;
+            color: #fff; font-size: 13px; pointer-events: none;
+            text-shadow: 0 0 5px #000; z-index: 10;
+        }
+        #debug {
+            position: absolute; bottom: 10px; left: 10px;
+            color: #888; font-size: 11px; pointer-events: none; z-index: 10;
+        }
+        #prompt {
+            position: absolute; bottom: 20%; left: 50%;
+            transform: translateX(-50%);
+            color: #fff; font-size: 20px;
+            background: rgba(0,0,0,0.7); padding: 10px 20px;
+            border-radius: 6px; pointer-events: none;
+            border: 1px solid rgba(255,255,255,0.2); z-index: 10;
+            text-shadow: 0 0 5px #000;
+            transition: color 0.2s, border-color 0.2s;
+        }
+        #prompt.shop-prompt {
+            color: #ffdd88;
+            border-color: rgba(255,200,100,0.5);
+            box-shadow: 0 0 12px rgba(255,180,60,0.25);
+        }
+        #catch-counter {
+            position: absolute; top: 10px; right: 10px;
+            color: #88ddff; font-size: 16px; pointer-events: none;
+            text-shadow: 0 0 5px #000; z-index: 10;
+        }
+        #coin-counter {
+            position: absolute; top: 36px; right: 10px;
+            color: #ffcc44; font-size: 16px; pointer-events: none;
+            text-shadow: 0 0 6px #000, 0 0 12px rgba(255,180,60,0.5);
+            z-index: 10;
+            display: flex; align-items: center; gap: 6px;
+            font-weight: bold; letter-spacing: 0.5px;
+        }
+        #coin-counter svg {
+            width: 18px; height: 18px;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        #sale-toast {
+            position: absolute; top: 62px; right: 10px;
+            color: #ffee88; font-size: 15px;
+            font-family: monospace; font-weight: bold;
+            text-shadow: 0 0 8px #ffaa00, 0 0 4px #000;
+            opacity: 0; transform: translateY(-4px);
+            transition: opacity 0.3s, transform 0.3s;
+            pointer-events: none; z-index: 12;
+        }
+        #sale-toast.show {
+            opacity: 1; transform: translateY(0);
+        }
+        #bite-indicator {
+            position: absolute; top: 40%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ffff44; font-size: 80px;
+            font-weight: bold; pointer-events: none;
+            text-shadow: 0 0 20px #ff8800, 0 0 40px #ff4400;
+            display: none; z-index: 20;
+            animation: pulse 0.3s infinite alternate;
+        }
+        @keyframes pulse {
+            from { transform: translate(-50%, -50%) scale(1); }
+            to { transform: translate(-50%, -50%) scale(1.2); }
+        }
+        #fish-caught {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff; font-size: 24px;
+            background: rgba(0,0,0,0.85); padding: 20px 40px;
+            border-radius: 10px; pointer-events: none;
+            display: none; z-index: 25;
+            text-align: center; border: 2px solid;
+        }
+        #fish-caught .rarity { font-size: 14px; margin-top: 8px; opacity: 0.8; }
+        #fish-caught .name { font-size: 32px; font-weight: bold; margin: 5px 0; }
+        #fish-caught .value { font-size: 14px; margin-top: 6px; color: #ffcc44; }
+        #crosshair {
+            position: absolute; top: 50%; left: 50%;
+            width: 4px; height: 4px;
+            background: rgba(255,255,255,0.6);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none; z-index: 10;
+        }
+        #error {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff4444; font-size: 20px;
+            background: rgba(0,0,0,0.9); padding: 20px;
+            border-radius: 8px; display: none; z-index: 30;
+        }
+
+        #debug-panel {
+            position: absolute; top: 40px; left: 10px;
+            width: 260px;
+            background: rgba(8, 14, 20, 0.88);
+            border: 2px solid #2a5a7a;
+            border-radius: 8px;
+            padding: 8px 10px 10px 10px;
+            color: #cceeff;
+            font-family: monospace;
+            font-size: 11px;
+            z-index: 40;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.7);
+            user-select: none;
+        }
+        #debug-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 6px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #2a5a7a;
+            color: #88ddff; font-weight: bold; letter-spacing: 1px;
+            font-size: 12px;
+        }
+        #debug-hide {
+            background: rgba(140, 30, 30, 0.6);
+            color: #fff; border: 1px solid #aa4444;
+            border-radius: 4px; padding: 1px 8px;
+            font-family: monospace; font-size: 13px;
+            cursor: pointer; line-height: 1;
+        }
+        #debug-hide:hover { background: rgba(200, 50, 50, 0.9); }
+        .debug-row {
+            display: flex; justify-content: space-between;
+            gap: 8px; padding: 2px 0;
+            border-bottom: 1px dotted rgba(60, 100, 130, 0.3);
+        }
+        .debug-label { color: #7aa8c8; }
+        .debug-value { color: #cceeff; font-weight: bold; text-align: right; }
+        .debug-value.ok { color: #66ff88; }
+        .debug-value.warn { color: #ffcc44; }
+        .debug-value.bad { color: #ff6666; }
+        #debug-show-btn {
+            position: absolute; top: 40px; left: 10px;
+            background: rgba(8, 14, 20, 0.88);
+            border: 2px solid #2a5a7a;
+            border-radius: 8px;
+            padding: 6px 12px;
+            color: #88ddff; font-family: monospace; font-size: 11px;
+            cursor: pointer; z-index: 40;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.7);
+        }
+        #debug-show-btn:hover { background: rgba(20, 40, 60, 0.95); color: #cceeff; }
+
+        #backpack-btn {
+            position: absolute; bottom: 20px; right: 20px;
+            width: 64px; height: 64px;
+            background: rgba(40, 25, 15, 0.85);
+            border: 2px solid #8a6a3a;
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            z-index: 15;
+            transition: transform 0.15s, background 0.15s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+        }
+        #backpack-btn:hover {
+            background: rgba(60, 40, 20, 0.95);
+            transform: scale(1.08);
+            border-color: #ffcc66;
+        }
+        #backpack-btn svg {
+            width: 44px; height: 44px;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        #backpack-count {
+            position: absolute; top: -6px; right: -6px;
+            background: #ff3333; color: #fff;
+            font-family: monospace; font-size: 12px; font-weight: bold;
+            padding: 2px 7px; border-radius: 10px;
+            border: 2px solid #000;
+            min-width: 12px; text-align: center;
+        }
+        #inventory-overlay {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.75);
+            display: none;
+            align-items: center; justify-content: center;
+            z-index: 50;
+            backdrop-filter: blur(4px);
+        }
+        #inventory-panel {
+            width: 90%; max-width: 700px;
+            max-height: 80%;
+            background: linear-gradient(180deg, #2a1e14 0%, #1a1208 100%);
+            border: 3px solid #8a6a3a;
+            border-radius: 14px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.9), inset 0 0 40px rgba(255,180,80,0.05);
+            display: flex; flex-direction: column;
+            overflow: hidden;
+        }
+        #inventory-header {
+            padding: 16px 20px;
+            background: rgba(0,0,0,0.4);
+            border-bottom: 2px solid #8a6a3a;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        #inventory-header h2 {
+            margin: 0; color: #ffcc66; font-size: 20px;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(255,200,100,0.4);
+            display: flex; align-items: center; gap: 10px;
+        }
+        #inventory-header h2 svg {
+            width: 28px; height: 28px;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        #close-inv {
+            background: rgba(140, 30, 30, 0.6);
+            color: #fff; border: 2px solid #aa4444;
+            border-radius: 8px; padding: 6px 14px;
+            font-family: monospace; font-size: 14px;
+            cursor: pointer; transition: background 0.15s;
+        }
+        #close-inv:hover { background: rgba(180, 40, 40, 0.9); }
+        #inventory-grid {
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 12px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        .fish-slot {
+            background: rgba(0,0,0,0.4);
+            border: 2px solid #4a3a20;
+            border-radius: 10px;
+            padding: 12px;
+            text-align: center;
+            transition: transform 0.15s, border-color 0.15s;
+            cursor: pointer;
+            position: relative;
+        }
+        .fish-slot:hover {
+            transform: translateY(-3px);
+            border-color: #ffcc66;
+        }
+        .fish-slot svg {
+            width: 72px;
+            height: 48px;
+            margin-bottom: 6px;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        .fish-slot .fish-name {
+            color: #fff; font-size: 12px;
+            font-weight: bold; margin-bottom: 4px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .fish-slot .fish-rarity {
+            font-size: 10px; margin-bottom: 4px;
+            letter-spacing: 1px;
+        }
+        .fish-slot .fish-value {
+            color: #ffcc66; font-size: 11px;
+        }
+        .fish-slot .fish-count {
+            position: absolute; top: 6px; right: 8px;
+            background: rgba(0,0,0,0.7);
+            color: #ffcc66; font-size: 12px;
+            font-weight: bold; padding: 1px 6px;
+            border-radius: 8px;
+            border: 1px solid #8a6a3a;
+        }
+        #inventory-footer {
+            padding: 14px 20px;
+            background: rgba(0,0,0,0.5);
+            border-top: 2px solid #8a6a3a;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        #total-value {
+            color: #ffcc66; font-size: 16px;
+            letter-spacing: 1px;
+        }
+        #total-value .amount {
+            color: #ffee88; font-weight: bold; font-size: 18px;
+            text-shadow: 0 0 10px rgba(255,220,120,0.5);
+        }
+        #empty-msg {
+            color: #666; font-size: 14px;
+            text-align: center; padding: 40px 20px;
+            grid-column: 1 / -1;
+            font-style: italic;
+        }
+        #inventory-grid::-webkit-scrollbar { width: 8px; }
+        #inventory-grid::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); }
+        #inventory-grid::-webkit-scrollbar-thumb {
+            background: #6a5030; border-radius: 4px;
+        }
+        #shop-overlay {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.75);
+            display: none;
+            align-items: center; justify-content: center;
+            z-index: 51;
+            backdrop-filter: blur(4px);
+        }
+        #shop-panel {
+            width: 90%; max-width: 760px;
+            max-height: 85%;
+            background: linear-gradient(180deg, #2a1e14 0%, #1a1208 100%);
+            border: 3px solid #8a6a3a;
+            border-radius: 14px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.9), inset 0 0 40px rgba(255,180,80,0.05);
+            display: flex; flex-direction: column;
+            overflow: hidden;
+        }
+        #shop-header {
+            padding: 14px 20px;
+            background: linear-gradient(180deg, rgba(180,80,40,0.25) 0%, rgba(0,0,0,0.4) 100%);
+            border-bottom: 2px solid #8a6a3a;
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 12px; flex-wrap: wrap;
+        }
+        #shop-header h2 {
+            margin: 0; color: #ffcc66; font-size: 20px;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(255,200,100,0.4);
+            display: flex; align-items: center; gap: 10px;
+        }
+        #shop-header h2 svg {
+            width: 28px; height: 28px;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        #shop-balance {
+            display: flex; align-items: center; gap: 6px;
+            color: #ffcc44; font-size: 18px; font-weight: bold;
+            text-shadow: 0 0 8px rgba(255,180,60,0.6);
+            letter-spacing: 0.5px;
+        }
+        #shop-balance svg {
+            width: 20px; height: 20px;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        #close-shop {
+            background: rgba(140, 30, 30, 0.6);
+            color: #fff; border: 2px solid #aa4444;
+            border-radius: 8px; padding: 6px 14px;
+            font-family: monospace; font-size: 14px;
+            cursor: pointer; transition: background 0.15s;
+        }
+        #close-shop:hover { background: rgba(180, 40, 40, 0.9); }
+        #shop-grid {
+            padding: 16px 20px;
+            display: flex; flex-direction: column;
+            gap: 10px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        .shop-item {
+            display: grid;
+            grid-template-columns: 72px 1fr auto auto;
+            gap: 12px;
+            align-items: center;
+            background: rgba(0,0,0,0.4);
+            border: 2px solid #4a3a20;
+            border-radius: 10px;
+            padding: 10px 12px;
+            transition: border-color 0.15s, background 0.15s;
+        }
+        .shop-item:hover {
+            border-color: #8a6a3a;
+            background: rgba(0,0,0,0.55);
+        }
+        .shop-item-icon svg {
+            width: 72px; height: 48px;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        .shop-item-info { min-width: 0; }
+        .shop-item-name {
+            color: #fff; font-size: 15px;
+            font-weight: bold; margin-bottom: 3px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .shop-item-rarity {
+            font-size: 11px; letter-spacing: 1px;
+        }
+        .shop-item-price {
+            text-align: right;
+            display: flex; flex-direction: column; gap: 2px;
+        }
+        .shop-price-total {
+            color: #ffee88; font-size: 17px;
+            font-weight: bold;
+            text-shadow: 0 0 8px rgba(255,220,120,0.4);
+        }
+        .shop-price-unit {
+            color: #887a55; font-size: 10px;
+        }
+        .shop-sell-btn {
+            background: linear-gradient(180deg, #6a5a2a 0%, #4a3a10 100%);
+            color: #ffdd88; border: 2px solid #aa8a3a;
+            border-radius: 8px; padding: 8px 12px;
+            font-family: monospace; font-size: 13px;
+            font-weight: bold; letter-spacing: 0.5px;
+            cursor: pointer; transition: all 0.15s;
+            white-space: nowrap;
+        }
+        .shop-sell-btn:hover {
+            background: linear-gradient(180deg, #8a7a3a 0%, #6a5a20 100%);
+            border-color: #ffcc66;
+            transform: translateY(-1px);
+        }
+        .shop-sell-btn:active {
+            transform: translateY(0);
+        }
+        .shop-empty-msg {
+            color: #666; font-size: 14px;
+            text-align: center; padding: 50px 20px;
+            font-style: italic;
+        }
+        #shop-footer {
+            padding: 14px 20px;
+            background: rgba(0,0,0,0.5);
+            border-top: 2px solid #8a6a3a;
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 12px; flex-wrap: wrap;
+        }
+        #shop-footer-left {
+            color: #ffcc66; font-size: 15px;
+            letter-spacing: 1px;
+        }
+        #shop-total {
+            color: #ffee88; font-weight: bold; font-size: 18px;
+            text-shadow: 0 0 10px rgba(255,220,120,0.5);
+        }
+        #sell-all-btn {
+            background: linear-gradient(180deg, #7a4a2a 0%, #4a2a10 100%);
+            color: #ffdd88; border: 2px solid #aa6a3a;
+            border-radius: 8px; padding: 10px 20px;
+            font-family: monospace; font-size: 14px;
+            font-weight: bold; letter-spacing: 0.5px;
+            cursor: pointer; transition: all 0.15s;
+        }
+        #sell-all-btn:hover:not(:disabled) {
+            background: linear-gradient(180deg, #9a6a3a 0%, #6a4a20 100%);
+            border-color: #ffcc66;
+            transform: translateY(-1px);
+        }
+        #sell-all-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+        #shop-grid::-webkit-scrollbar { width: 8px; }
+        #shop-grid::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); }
+        #shop-grid::-webkit-scrollbar-thumb {
+            background: #6a5030; border-radius: 4px;
+        }
+        @media (max-width: 560px) {
+            .shop-item {
+                grid-template-columns: 60px 1fr;
+                grid-template-areas:
+                    "icon info"
+                    "price button";
+            }
+            .shop-item-icon { grid-area: icon; }
+            .shop-item-info { grid-area: info; }
+            .shop-item-price { grid-area: price; align-items: flex-start; }
+            .shop-sell-btn { grid-area: button; justify-self: end; }
+        }
+    </style>
+</head>
+<body>
+    <div id="info">Klik om te starten | WASD: lopen | Muis: kijken | E: casten / interact | I: rugtas | F2: debug</div>
+    <div id="catch-counter">Vangst: 0</div>
+    <div id="coin-counter">
+        <svg viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+            <rect x="3" y="0" width="6" height="1" fill="#ffe088"/>
+            <rect x="1" y="1" width="10" height="1" fill="#ffcc44"/>
+            <rect x="0" y="2" width="12" height="8" fill="#ffcc44"/>
+            <rect x="1" y="10" width="10" height="1" fill="#cc8811"/>
+            <rect x="3" y="11" width="6" height="1" fill="#aa6611"/>
+            <rect x="4" y="3" width="4" height="6" fill="#aa7711"/>
+            <rect x="3" y="4" width="6" height="4" fill="#ffe088"/>
+        </svg>
+        <span id="coin-amount">0</span>
+    </div>
+    <div id="sale-toast"></div>
+    <div id="debug">FPS: --</div>
+    <div id="prompt">Klik om te beginnen</div>
+    <div id="bite-indicator">!</div>
+    <div id="fish-caught"></div>
+    <div id="crosshair"></div>
+    <div id="error"></div>
+
+    <div id="debug-panel">
+        <div id="debug-header">
+            <span>🔍 WATER DEBUG</span>
+            <button id="debug-hide" title="Verbergen (F2)">×</button>
+        </div>
+        <div class="debug-row">
+            <span class="debug-label">Water mesh:</span>
+            <span class="debug-value" id="dbg-mesh">--</span>
+        </div>
+        <div class="debug-row">
+            <span class="debug-label">Materiaal:</span>
+            <span class="debug-value" id="dbg-mat">--</span>
+        </div>
+        <div class="debug-row">
+            <span class="debug-label">Update calls /s:</span>
+            <span class="debug-value" id="dbg-calls">--</span>
+        </div>
+        <div class="debug-row">
+            <span class="debug-label">Amplitude (config):</span>
+            <span class="debug-value" id="dbg-amp">--</span>
+        </div>
+        <div class="debug-row">
+            <span class="debug-label">Vertices min Y:</span>
+            <span class="debug-value" id="dbg-min">--</span>
+        </div>
+        <div class="debug-row">
+            <span class="debug-label">Vertices max Y:</span>
+            <span class="debug-value" id="dbg-max">--</span>
+        </div>
+        <div class="debug-row">
+            <span class="debug-label">Frame→Frame Δ:</span>
+            <span class="debug-value" id="dbg-delta">--</span>
+        </div>
+        <div class="debug-row">
+            <span class="debug-label">FPS:</span>
+            <span class="debug-value" id="dbg-fps">--</span>
+        </div>
+        <div class="debug-row" style="border-bottom: none;">
+            <span class="debug-label">Laatste fout:</span>
+            <span class="debug-value" id="dbg-err">geen</span>
+        </div>
+    </div>
+
+    <div id="debug-show-btn" style="display: none;">🔍 Toon debug (F2)</div>
+
+    <div id="backpack-btn" title="Rugtas (I)">
+        <div id="backpack-icon-container"></div>
+        <div id="backpack-count">0</div>
+    </div>
+
+    <div id="inventory-overlay">
+        <div id="inventory-panel">
+            <div id="inventory-header">
+                <h2>
+                    <span id="inventory-icon-container"></span>
+                    RUGTAS
+                </h2>
+                <button id="close-inv">Sluiten (I)</button>
+            </div>
+            <div id="inventory-grid"></div>
+            <div id="inventory-footer">
+                <div id="total-value">Totale waarde: <span class="amount">0</span> goud</div>
+                <div style="color:#888; font-size:12px;">Loop naar de viskraam om te verkopen</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="shop-overlay">
+        <div id="shop-panel">
+            <div id="shop-header">
+                <h2>
+                    <span id="shop-icon-header-container"></span>
+                    VISWINKEL
+                </h2>
+                <div id="shop-balance">
+                    <svg viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+                        <rect x="3" y="0" width="6" height="1" fill="#ffe088"/>
+                        <rect x="1" y="1" width="10" height="1" fill="#ffcc44"/>
+                        <rect x="0" y="2" width="12" height="8" fill="#ffcc44"/>
+                        <rect x="1" y="10" width="10" height="1" fill="#cc8811"/>
+                        <rect x="3" y="11" width="6" height="1" fill="#aa6611"/>
+                        <rect x="4" y="3" width="4" height="6" fill="#aa7711"/>
+                        <rect x="3" y="4" width="6" height="4" fill="#ffe088"/>
+                    </svg>
+                    <span id="shop-coins">0</span>
+                </div>
+                <button id="close-shop">Sluiten (Esc)</button>
+            </div>
+            <div id="shop-grid"></div>
+            <div id="shop-footer">
+                <div id="shop-footer-left">Totale opbrengst: <span id="shop-total">0</span> munten</div>
+                <button id="sell-all-btn">Verkoop alles</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+
+        const errorEl = document.getElementById('error');
+        function showError(msg) {
+            errorEl.textContent = msg;
+            errorEl.style.display = 'block';
+        }
+
+        // =================== PIXEL ART RENDERER ===================
+        function renderPixelArt(pattern, colorMap) {
+            const h = pattern.length;
+            const w = pattern[0].length;
+            let rects = '';
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    const ch = pattern[y][x];
+                    const color = colorMap[ch];
+                    if (color) {
+                        rects += `<rect x="${x}" y="${y}" width="1" height="1" fill="${color}"/>`;
+                    }
+                }
+            }
+            return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" shape-rendering="crispEdges" preserveAspectRatio="xMidYMid meet">${rects}</svg>`;
+        }
+
+        const BACKPACK_PATTERN = [
+            '              ',
+            '...XX....XX...',
+            '..XGGX..XGGX..',
+            '..XGGX..XGGX..',
+            '.XBBBBBBBBBBX.',
+            'XBBBBBBBBBBBBX',
+            'XBBBBBBBBBBBBX',
+            'XBBBBBBBBBBBBX',
+            'XBBBXXXXXXBBBX',
+            'XBBBXGGGGXBBBX',
+            'XBBBXXXXXXBBBX',
+            'XBBBBBBBBBBBBX',
+            'XBBBBBBBBBBBBX',
+            '.XXXXXXXXXXXX.',
+        ];
+
+        const BACKPACK_COLORS = { 'X': '#2a1a0a', 'G': '#ffcc66', 'B': '#8a6a3a' };
+
+        const SHOP_PATTERN = [
+            '              ',
+            '  XXXXXXXXXX  ',
+            ' XRWRWRWRWRWX ',
+            ' XWRWRWRWRWRX ',
+            ' XRWRWRWRWRWX ',
+            ' XXXXXXXXXXXX ',
+            ' XBBBBBBBBBBX ',
+            ' XBBBBBBBBBBX ',
+            ' XBBXXXXXXBBX ',
+            ' XBBXGGGGXBBX ',
+            ' XBBXGGGGXBBX ',
+            ' XBBXXXXXXBBX ',
+            ' XBBBBBBBBBBX ',
+            ' XXXXXXXXXXXX ',
+        ];
+        const SHOP_COLORS = {
+            'X': '#2a1a0a',
+            'R': '#aa3322',
+            'W': '#ffddbb',
+            'B': '#6a4a2a',
+            'G': '#ffcc44',
+        };
+
+        const FISH_PATTERN = [
+            '            ',
+            '    XXXX    ',
+            '  XXBBBBXX  ',
+            ' XBWBBBBBXX ',
+            'XBEBBBBBBBBX',
+            ' XBBBBBBBXX ',
+            '  XXBBBBXX  ',
+            '    XXXX    ',
+        ];
+
+        function renderFishPixelArt(bodyColorHex) {
+            const colorMap = { 'X': '#0a0a18', 'B': bodyColorHex, 'W': '#ffffff', 'E': '#000000' };
+            return renderPixelArt(FISH_PATTERN, colorMap);
+        }
+
+        document.getElementById('backpack-icon-container').innerHTML =
+            renderPixelArt(BACKPACK_PATTERN, BACKPACK_COLORS);
+        document.getElementById('inventory-icon-container').innerHTML =
+            renderPixelArt(BACKPACK_PATTERN, BACKPACK_COLORS);
+        document.getElementById('shop-icon-header-container').innerHTML =
+            renderPixelArt(SHOP_PATTERN, SHOP_COLORS);
+
+        // =====================================================================
+        // =================== AUDIO SYSTEM (FROZEN — NIET AANPASSEN) ==========
+        // =====================================================================
+        let audioCtx = null;
+        let audioUnlocked = false;
+        let catchSoundActive = false;
+        let sfxMasterGain = null;
+
+        const SFX_MASTER_VOLUME = 0.70;
+
+        const sfxCooldowns = {
+            whoosh: 0,
+            ding: 0,
+            miss: 0,
+            catch: 0,
+            inv: 0
+        };
+
+        function sfxCooldownCheck(key, ms) {
+            const now = performance.now();
+            if (now - (sfxCooldowns[key] || 0) < ms) return false;
+            sfxCooldowns[key] = now;
+            return true;
+        }
+
+        function ensureAudioContext() {
+            if (audioCtx) return true;
+            try {
+                const AC = window.AudioContext || window.webkitAudioContext;
+                if (!AC) {
+                    console.error('[Audio] Web Audio API niet ondersteund');
+                    return false;
+                }
+                audioCtx = new AC();
+                console.log('[Audio] AudioContext aangemaakt. State:', audioCtx.state);
+                return true;
+            } catch (e) {
+                console.error('[Audio] Kon AudioContext niet aanmaken:', e);
+                return false;
+            }
+        }
+
+        function ensureSFXMaster() {
+            if (sfxMasterGain) return;
+            if (!audioCtx) return;
+            sfxMasterGain = audioCtx.createGain();
+            sfxMasterGain.gain.value = SFX_MASTER_VOLUME;
+            sfxMasterGain.connect(audioCtx.destination);
+            console.log('[Audio] SFX master gain aangemaakt op', SFX_MASTER_VOLUME);
+        }
+
+        function initAudio() {
+            if (!ensureAudioContext()) return;
+            ensureSFXMaster();
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume().then(() => {
+                    audioUnlocked = true;
+                    console.log('[Audio] Context resumed. State:', audioCtx.state);
+                }).catch(e => {
+                    console.error('[Audio] Resume faalde:', e);
+                });
+            } else if (audioCtx.state === 'running') {
+                audioUnlocked = true;
+            }
+        }
+
+        async function ensureAudioRunning() {
+            if (!ensureAudioContext()) return false;
+            ensureSFXMaster();
+            if (audioCtx.state === 'running') return true;
+            try {
+                await audioCtx.resume();
+                console.log('[Audio] Context resumed (awaited). State:', audioCtx.state);
+            } catch (e) {
+                console.error('[Audio] Awaited resume faalde:', e);
+                return false;
+            }
+            return audioCtx.state === 'running';
+        }
+
+        // =================== WATER AMBIENCE (UNCHANGED) ===================
+        const ambientUrl = 'https://actions.google.com/sounds/v1/water/water_lapping_wind.ogg';
+        const ambientAudio = new Audio();
+        ambientAudio.src = ambientUrl;
+        ambientAudio.loop = true;
+        ambientAudio.volume = 0.0;
+        ambientAudio.crossOrigin = 'anonymous';
+
+        let ambientReady = false;
+        let ambientFadeTarget = 0;
+
+        ambientAudio.addEventListener('canplaythrough', () => {
+            ambientReady = true;
+            console.log('[Audio] Ambient track geladen');
+        });
+        ambientAudio.addEventListener('error', (e) => {
+            ambientReady = false;
+            console.error('[Audio] Ambient track kon niet laden:', ambientUrl, e);
+        });
+
+        function startAmbient() {
+            if (!ambientReady) return;
+            if (!ambientAudio.paused) return;
+            ambientAudio.play().then(() => {
+                ambientFadeTarget = 0.28;
+            }).catch(e => {
+                console.warn('[Audio] Ambient autoplay geblokkeerd:', e);
+            });
+        }
+
+        function updateAmbientFade(delta) {
+            if (!ambientReady) return;
+            const current = ambientAudio.volume;
+            if (current < ambientFadeTarget) {
+                ambientAudio.volume = Math.min(ambientFadeTarget, current + delta * 0.15);
+            } else if (current > ambientFadeTarget) {
+                ambientAudio.volume = Math.max(ambientFadeTarget, current - delta * 0.15);
+            }
+        }
+
+        // =================== SFX BUILDING BLOCKS (FROZEN) ===================
+        function noiseBurst(startTime, duration, filterType, freqStart, freqEnd, Q, peakVolume, attackTime = 0.005) {
+            if (!audioCtx || audioCtx.state !== 'running') return;
+            if (!sfxMasterGain) return;
+
+            const bufferSize = Math.max(1, Math.floor(audioCtx.sampleRate * duration));
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+
+            for (let i = 0; i < bufferSize; i++) {
+                const fade = 1 - (i / bufferSize) * 0.35;
+                data[i] = (Math.random() * 2 - 1) * fade;
+            }
+
+            const source = audioCtx.createBufferSource();
+            source.buffer = buffer;
+
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = filterType;
+            filter.frequency.setValueAtTime(Math.max(20, freqStart), startTime);
+            if (freqEnd !== freqStart) {
+                filter.frequency.exponentialRampToValueAtTime(Math.max(20, freqEnd), startTime + duration);
+            }
+            filter.Q.value = Q;
+
+            const gain = audioCtx.createGain();
+            const safeAttack = Math.min(attackTime, duration * 0.45);
+            gain.gain.setValueAtTime(0.0001, startTime);
+            gain.gain.linearRampToValueAtTime(Math.max(0.0002, peakVolume), startTime + safeAttack);
+            gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+            source.connect(filter);
+            filter.connect(gain);
+            gain.connect(sfxMasterGain);
+            source.start(startTime);
+            source.stop(startTime + duration + 0.02);
+        }
+
+        function softTone(freq, startTime, duration, peakVolume, type = 'sine') {
+            if (!audioCtx || audioCtx.state !== 'running') return;
+            if (!sfxMasterGain) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, startTime);
+
+            gain.gain.setValueAtTime(0.0001, startTime);
+            gain.gain.linearRampToValueAtTime(Math.max(0.0002, peakVolume), startTime + Math.min(0.025, duration * 0.2));
+            gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+            osc.connect(gain);
+            gain.connect(sfxMasterGain);
+            osc.start(startTime);
+            osc.stop(startTime + duration + 0.025);
+        }
+
+        function playSubBass(startTime, freq, duration, volume) {
+            if (!audioCtx || audioCtx.state !== 'running') return;
+            if (!sfxMasterGain) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, startTime);
+            osc.frequency.exponentialRampToValueAtTime(Math.max(25, freq * 0.78), startTime + duration);
+
+            gain.gain.setValueAtTime(0.0001, startTime);
+            gain.gain.linearRampToValueAtTime(volume, startTime + Math.min(0.045, duration * 0.2));
+            gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+            osc.connect(gain);
+            gain.connect(sfxMasterGain);
+            osc.start(startTime);
+            osc.stop(startTime + duration + 0.025);
+        }
+
+        function playSparkle(startTime, count, baseFreq, volume) {
+            for (let i = 0; i < count; i++) {
+                softTone(baseFreq * Math.pow(2, i / 12), startTime + i * 0.065, 0.22, volume, 'sine');
+            }
+        }
+
+        function playWhoosh() {
+            if (!audioCtx || audioCtx.state !== 'running') return;
+            if (!sfxCooldownCheck('whoosh', 350)) return;
+            const t = audioCtx.currentTime + 0.01;
+            noiseBurst(t, 0.22, 'bandpass', 300, 780, 0.7, 0.020, 0.045);
+            noiseBurst(t + 0.06, 0.14, 'highpass', 1800, 1400, 0.6, 0.005, 0.025);
+        }
+
+        function playSplashAt(startTime, volume = 0.070) {
+            if (!audioCtx || audioCtx.state !== 'running') return;
+            noiseBurst(startTime, 0.24, 'lowpass', 900, 260, 0.65, volume, 0.006);
+            noiseBurst(startTime + 0.018, 0.085, 'bandpass', 2100, 1250, 1.0, volume * 0.28, 0.003);
+            softTone(145, startTime + 0.008, 0.12, volume * 0.20, 'sine');
+        }
+
+        function playSplash() {
+            if (!audioCtx || audioCtx.state !== 'running') return;
+            playSplashAt(audioCtx.currentTime + 0.005, 0.075);
+        }
+
+        function playDing() {
+            if (!audioCtx || audioCtx.state !== 'running') return;
+            if (!sfxCooldownCheck('ding', 250)) return;
+            const t = audioCtx.currentTime + 0.01;
+            noiseBurst(t, 0.045, 'bandpass', 900, 620, 2.8, 0.020, 0.003);
+            softTone(155, t, 0.11, 0.022, 'sine');
+            softTone(232, t + 0.015, 0.08, 0.014, 'sine');
+        }
+
+        async function playCatch(rarity) {
+            if (catchSoundActive) return;
+            if (!sfxCooldownCheck('catch', 800)) return;
+            catchSoundActive = true;
+
+            const ready = await ensureAudioRunning();
+            if (!ready) {
+                catchSoundActive = false;
+                return;
+            }
+
+            const t0 = audioCtx.currentTime + 0.02;
+            playSplashAt(t0, rarity === 'legendary' ? 0.085 : 0.070);
+            noiseBurst(t0 + 0.10, 0.028, 'bandpass', 1200, 900, 3.2, 0.014, 0.001);
+            softTone(340, t0 + 0.10, 0.055, 0.010, 'triangle');
+
+            const noteStart = t0 + 0.22;
+
+            if (rarity === 'legendary') {
+                const melody = [392.00, 493.88, 587.33, 783.99, 987.77];
+                melody.forEach((f, i) => {
+                    softTone(f, noteStart + i * 0.10, 0.55, 0.050, 'sine');
+                    softTone(f * 1.5, noteStart + i * 0.10, 0.45, 0.018, 'sine');
+                });
+                playSubBass(t0 + 0.05, 73.42, 0.45, 0.028);
+                playSparkle(noteStart + 0.55, 4, 1567.98, 0.007);
+                softTone(1174.66, noteStart + 0.55, 0.70, 0.018, 'sine');
+            } else if (rarity === 'rare') {
+                const notes = [440.00, 554.37, 659.25, 880.00];
+                notes.forEach((f, i) => {
+                    softTone(f, noteStart + i * 0.095, 0.42, 0.042, 'sine');
+                    softTone(f * 1.5, noteStart + i * 0.095, 0.35, 0.012, 'sine');
+                });
+                playSparkle(noteStart + 0.36, 2, 1318.51, 0.007);
+            } else if (rarity === 'uncommon') {
+                [440.00, 554.37, 659.25].forEach((f, i) =>
+                    softTone(f, noteStart + i * 0.11, 0.35, 0.038, 'sine'));
+            } else {
+                softTone(440.00, noteStart, 0.36, 0.036, 'sine');
+                softTone(659.25, noteStart + 0.13, 0.38, 0.028, 'sine');
+            }
+
+            window.setTimeout(() => { catchSoundActive = false; },
+                rarity === 'legendary' ? 2200 : 1300);
+        }
+
+        function playMiss() {
+            if (!audioCtx || audioCtx.state !== 'running') return;
+            if (!sfxCooldownCheck('miss', 400)) return;
+            const t = audioCtx.currentTime + 0.01;
+            noiseBurst(t, 0.045, 'lowpass', 500, 250, 0.6, 0.015, 0.004);
+            softTone(165, t, 0.13, 0.018, 'sine');
+        }
+
+        function playOpenInv() {
+            if (!audioCtx || audioCtx.state !== 'running') return;
+            if (!sfxCooldownCheck('inv', 300)) return;
+            const t = audioCtx.currentTime + 0.005;
+            noiseBurst(t, 0.022, 'bandpass', 880, 620, 3.0, 0.014, 0.001);
+            softTone(220, t + 0.003, 0.05, 0.011, 'triangle');
+        }
+
+        // =====================================================================
+        // =================== BACKGROUND MUSIC (v1 LAUNCH) ====================
+        // =====================================================================
+        // Volledig losstaand systeem — raakt de bestaande audio-code NIET aan.
+        // De mp3 moet als 'cozy-bg-music.mp3' naast dit HTML-bestand staan.
+        const BG_MUSIC_URL = 'Nookville Morning - usesuno.com.mp3';
+        const BG_MUSIC_VOLUME = 0.45;
+        const BG_MUSIC_FADE_IN_TIME = 2.5;
+
+        const bgMusic = new Audio();
+        bgMusic.src = BG_MUSIC_URL;
+        bgMusic.loop = true;
+        bgMusic.preload = 'auto';
+        bgMusic.volume = 0;
+        bgMusic.crossOrigin = 'anonymous';
+
+        let bgMusicReady = false;
+        let bgMusicStarted = false;
+        let bgMusicFadeProgress = 0;
+
+        bgMusic.addEventListener('canplaythrough', () => {
+            bgMusicReady = true;
+            console.log('[BG Music] Track geladen');
+        });
+
+        bgMusic.addEventListener('error', (e) => {
+            console.warn('[BG Music] Kon track niet laden:', BG_MUSIC_URL, e);
+        });
+
+        function actuallyPlayBgMusic() {
+            if (bgMusicStarted) return;
+            bgMusic.play().then(() => {
+                bgMusicStarted = true;
+                console.log('[BG Music] Afspelen gestart');
+            }).catch(e => {
+                console.warn('[BG Music] Play faalde (autoplay geblokkeerd?):', e);
+            });
+        }
+
+        function startBgMusic() {
+            if (bgMusicStarted) return;
+            if (!bgMusicReady) {
+                bgMusic.addEventListener('canplaythrough', actuallyPlayBgMusic, { once: true });
+                return;
+            }
+            actuallyPlayBgMusic();
+        }
+
+        function updateBgMusicFade(delta) {
+            if (!bgMusicStarted) return;
+            if (bgMusicFadeProgress >= 1) return;
+            bgMusicFadeProgress += delta / BG_MUSIC_FADE_IN_TIME;
+            if (bgMusicFadeProgress > 1) bgMusicFadeProgress = 1;
+            const eased = 1 - Math.pow(1 - bgMusicFadeProgress, 2);
+            bgMusic.volume = eased * BG_MUSIC_VOLUME;
+        }
+
+        document.body.addEventListener('click', startBgMusic);
+        document.body.addEventListener('touchstart', startBgMusic, { passive: true });
+        document.addEventListener('keydown', startBgMusic);
+
+        // =====================================================================
+        // =================== SCENE ===========================================
+        // =====================================================================
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0xffa060, 0.016);
+
+        const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 200);
+        camera.position.set(0, 1.7, 0);
+
+        let renderer;
+        try {
+            renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'low-power' });
+        } catch (e) {
+            showError('WebGL niet beschikbaar: ' + e.message);
+        }
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(1);
+        document.body.appendChild(renderer.domElement);
+
+        const PIXEL_WIDTH = 480;
+        const PIXEL_HEIGHT = 270;
+        const renderTarget = new THREE.WebGLRenderTarget(PIXEL_WIDTH, PIXEL_HEIGHT, {
+            minFilter: THREE.NearestFilter,
+            magFilter: THREE.NearestFilter,
+            format: THREE.RGBAFormat,
+            colorSpace: THREE.SRGBColorSpace
+        });
+
+        const quadScene = new THREE.Scene();
+        const quadCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        const quadGeo = new THREE.PlaneGeometry(2, 2);
+        const quadMat = new THREE.MeshBasicMaterial({ map: renderTarget.texture });
+        const quad = new THREE.Mesh(quadGeo, quadMat);
+        quadScene.add(quad);
+
+        renderer.domElement.addEventListener('webglcontextlost', (e) => {
+            e.preventDefault();
+            showError('GPU CRASH — herlaad de pagina (Ctrl+R)');
+        });
+
+        const controls = new PointerLockControls(camera, renderer.domElement);
+        document.body.addEventListener('click', () => {
+            initAudio();
+            startAmbient();
+            if (gameState !== 'inventory' && !inventoryOpen && !shopOpen) {
+                try { controls.lock(); } catch(e) {}
+            }
+        });
+        document.body.addEventListener('touchstart', () => {
+            initAudio();
+            startAmbient();
+        }, { passive: true });
+        scene.add(controls.getObject());
+
+        // =====================================================================
+        // =================== SKY — RIJDERE ZONSONDERGANG =====================
+        // =====================================================================
+        const skyGeo = new THREE.SphereGeometry(150, 24, 16);
+        const skyMat = new THREE.ShaderMaterial({
+            uniforms: {
+                cTop:     { value: new THREE.Color(0x120728) },
+                cUpper:   { value: new THREE.Color(0x3a0f52) },
+                cMid:     { value: new THREE.Color(0x8a1a5a) },
+                cLower:   { value: new THREE.Color(0xd43a55) },
+                cWarm:    { value: new THREE.Color(0xff8844) },
+                cHorizon: { value: new THREE.Color(0xffd870) }
+            },
+            vertexShader: `
+                varying vec3 vWorldPosition;
+                void main() {
+                    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                    vWorldPosition = worldPos.xyz;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 cTop;
+                uniform vec3 cUpper;
+                uniform vec3 cMid;
+                uniform vec3 cLower;
+                uniform vec3 cWarm;
+                uniform vec3 cHorizon;
+                varying vec3 vWorldPosition;
+                void main() {
+                    float h = normalize(vWorldPosition).y;
+                    vec3 col = cHorizon;
+                    col = mix(col, cWarm,   smoothstep(0.00, 0.10, h));
+                    col = mix(col, cLower,  smoothstep(0.08, 0.22, h));
+                    col = mix(col, cMid,    smoothstep(0.20, 0.40, h));
+                    col = mix(col, cUpper,  smoothstep(0.40, 0.65, h));
+                    col = mix(col, cTop,    smoothstep(0.65, 0.95, h));
+                    col *= mix(0.75, 1.0, smoothstep(-0.15, 0.05, h));
+                    gl_FragColor = vec4(col, 1.0);
+                }
+            `,
+            side: THREE.BackSide,
+            depthWrite: false
+        });
+        const sky = new THREE.Mesh(skyGeo, skyMat);
+        scene.add(sky);
+
+        // =====================================================================
+        // =================== ZON — GROTER MET 4 GLOW-LAGEN ===================
+        // =====================================================================
+        const sunZ = -120;
+        const sunY = 5;
+
+        const sunHaloOuter = new THREE.Mesh(
+            new THREE.CircleGeometry(48, 32),
+            new THREE.MeshBasicMaterial({
+                color: 0xff6622,
+                transparent: true,
+                opacity: 0.10,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            })
+        );
+        sunHaloOuter.position.set(0, sunY, sunZ - 1);
+        scene.add(sunHaloOuter);
+
+        const sunHaloMid = new THREE.Mesh(
+            new THREE.CircleGeometry(28, 32),
+            new THREE.MeshBasicMaterial({
+                color: 0xff8833,
+                transparent: true,
+                opacity: 0.22,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            })
+        );
+        sunHaloMid.position.set(0, sunY, sunZ);
+        scene.add(sunHaloMid);
+
+        const sunHaloInner = new THREE.Mesh(
+            new THREE.CircleGeometry(18, 32),
+            new THREE.MeshBasicMaterial({
+                color: 0xffbb55,
+                transparent: true,
+                opacity: 0.40,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            })
+        );
+        sunHaloInner.position.set(0, sunY, sunZ + 0.1);
+        scene.add(sunHaloInner);
+
+        const sunDisc = new THREE.Mesh(
+            new THREE.CircleGeometry(11, 32),
+            new THREE.MeshBasicMaterial({
+                color: 0xffffcc,
+                transparent: true,
+                opacity: 1.0,
+                depthWrite: false
+            })
+        );
+        sunDisc.position.set(0, sunY, sunZ + 0.2);
+        scene.add(sunDisc);
+
+        const sunCore = new THREE.Mesh(
+            new THREE.CircleGeometry(7, 32),
+            new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.9,
+                depthWrite: false
+            })
+        );
+        sunCore.position.set(0, sunY, sunZ + 0.3);
+        scene.add(sunCore);
+
+        // =====================================================================
+        // =================== WOLKEN — 3 LAGEN, WARME TINTEN ==================
+        // =====================================================================
+        function makeCloudTexture(edgeColor, bodyColor) {
+            const c = document.createElement('canvas');
+            c.width = 64; c.height = 32;
+            const ctx = c.getContext('2d');
+            const rows = [
+                '            XXXXXX            ',
+                '          XX......XX          ',
+                '        XX..........XX        ',
+                '       X..............X       ',
+                '      X................X      ',
+                '     X..................X     ',
+                '    X....................X    ',
+                '   X......................X   ',
+                '  X........................X  ',
+                '  X........................X  ',
+                ' XX........................XX ',
+                'XXX........................XXX',
+            ];
+            const cw = 30;
+            const ch = 12;
+            const px = c.width / cw;
+            const py = c.height / ch;
+            for (let y = 0; y < rows.length; y++) {
+                for (let x = 0; x < rows[y].length; x++) {
+                    const ch2 = rows[y][x];
+                    if (ch2 === 'X') ctx.fillStyle = edgeColor;
+                    else if (ch2 === '.') ctx.fillStyle = bodyColor;
+                    else continue;
+                    ctx.fillRect(Math.floor(x * px), Math.floor(y * py), Math.ceil(px), Math.ceil(py));
+                }
+            }
+            const tex = new THREE.CanvasTexture(c);
+            tex.magFilter = THREE.NearestFilter;
+            tex.minFilter = THREE.NearestFilter;
+            return tex;
+        }
+
+        const cloudTexWarm = makeCloudTexture('#ff9955', '#ffd0a0');
+        const cloudTexMid = makeCloudTexture('#a05580', '#d99aaa');
+        const cloudTexCool = makeCloudTexture('#4a3070', '#8a6090');
+
+        const cloudMatWarm = new THREE.MeshBasicMaterial({
+            map: cloudTexWarm, transparent: true, opacity: 0.85, depthWrite: false
+        });
+        const cloudMatMid = new THREE.MeshBasicMaterial({
+            map: cloudTexMid, transparent: true, opacity: 0.70, depthWrite: false
+        });
+        const cloudMatCool = new THREE.MeshBasicMaterial({
+            map: cloudTexCool, transparent: true, opacity: 0.55, depthWrite: false
+        });
+
+        const clouds = [];
+        const cloudData = [
+            { x: -60, y: 40, z: -140, scale: 14, speed: 0.08, mat: 'cool' },
+            { x:  20, y: 45, z: -150, scale: 16, speed: 0.06, mat: 'cool' },
+            { x:  80, y: 42, z: -145, scale: 12, speed: 0.07, mat: 'cool' },
+            { x: -45, y: 28, z: -110, scale: 10, speed: 0.12, mat: 'mid' },
+            { x:  35, y: 32, z: -115, scale: 12, speed: 0.10, mat: 'mid' },
+            { x: -10, y: 26, z: -105, scale: 11, speed: 0.14, mat: 'mid' },
+            { x: -30, y: 15, z: -80, scale: 7, speed: 0.20, mat: 'warm' },
+            { x:  45, y: 17, z: -85, scale: 8, speed: 0.18, mat: 'warm' },
+            { x:  10, y: 12, z: -75, scale: 6, speed: 0.22, mat: 'warm' },
+        ];
+
+        cloudData.forEach(cd => {
+            let mat = cloudMatWarm;
+            if (cd.mat === 'cool') mat = cloudMatCool;
+            else if (cd.mat === 'mid') mat = cloudMatMid;
+
+            const cloud = new THREE.Mesh(new THREE.PlaneGeometry(cd.scale, cd.scale * 0.5), mat);
+            cloud.position.set(cd.x, cd.y, cd.z);
+            cloud.userData = { speed: cd.speed, startX: cd.x, range: 200 };
+            scene.add(cloud);
+            clouds.push(cloud);
+        });
+
+        // =====================================================================
+        // =================== BELICHTING — WARME SFEER ========================
+        // =====================================================================
+        const ambient = new THREE.AmbientLight(0xaa7799, 0.75);
+        scene.add(ambient);
+
+        const sunLight = new THREE.DirectionalLight(0xffaa66, 1.5);
+        sunLight.position.set(0, 8, -60);
+        scene.add(sunLight);
+
+        const fillLight = new THREE.DirectionalLight(0xff8855, 0.4);
+        fillLight.position.set(0, 4, 20);
+        scene.add(fillLight);
+
+        const pierWarmLight = new THREE.PointLight(0xff9944, 0.6, 15);
+        pierWarmLight.position.set(0, 3.5, 0);
+        scene.add(pierWarmLight);
+
+        // =====================================================================
+        // ============ WATER — STARDEW VALLEY AUTUMN (HERFST) STIJL ===========
+        // =====================================================================
+        const WATER_BASE_Y = -0.6;
+        const WATER_BASE_Z = -20;
+
+        const waterGeo = new THREE.PlaneGeometry(120, 120, 72, 72);
+        const waterPositions = waterGeo.attributes.position;
+        const waterNormals = waterGeo.attributes.normal;
+        const waterOriginalPositions = new Float32Array(waterPositions.array);
+
+        const WATER_TEX_SIZE = 64;
+        const WATER_FRAME_COUNT = 8;
+        const WATER_FRAME_INTERVAL = 0.12;
+
+        function makeWaterFrames() {
+            const size = WATER_TEX_SIZE;
+            const total = size * size;
+            const frames = [];
+
+            const hashInt = new Int32Array(total);
+            const grain = new Float32Array(total);
+            for (let i = 0; i < total; i++) {
+                let h = (i * 2654435761) >>> 0;
+                h = (h ^ (h >>> 13)) >>> 0;
+                h = (h * 1274126177) >>> 0;
+                hashInt[i] = h % 1000;
+                grain[i] = (h % 10000) / 10000;
+            }
+
+            const P = [
+                [ 11,  60,  58],
+                [ 21,  97,  96],
+                [ 28, 106, 102],
+                [ 59, 168, 155],
+                [111, 224, 211]
+            ];
+            const SPARKLE  = [168, 245, 236];
+            const TURQFLEC = [100, 200, 185];
+
+            for (let f = 0; f < WATER_FRAME_COUNT; f++) {
+                const img = new ImageData(size, size);
+                const data = img.data;
+                const phase = (f / WATER_FRAME_COUNT) * Math.PI * 2;
+
+                for (let y = 0; y < size; y++) {
+                    for (let x = 0; x < size; x++) {
+                        const idx = y * size + x;
+
+                        const w1 = Math.sin(x * 0.85 + y * 0.30 + phase);
+                        const w2 = Math.sin(x * 0.22 - y * 0.95 - phase * 1.3) * 0.75;
+                        const w3 = Math.sin(x * 1.35 + y * 1.15 + phase * 0.7) * 0.35;
+                        let w = w1 + w2 + w3;
+
+                        let t = (w + 2.1) / 4.2;
+                        if (t < 0) t = 0;
+                        else if (t > 1) t = 1;
+
+                        t = t * 0.80 + grain[idx] * 0.20;
+
+                        let band = Math.floor(t * 5);
+                        if (band > 4) band = 4;
+                        if (band < 0) band = 0;
+
+                        let r = P[band][0];
+                        let g = P[band][1];
+                        let b = P[band][2];
+
+                        const dmod = (hashInt[idx] + f * 137) % 1000;
+                        if (dmod < 10) {
+                            r = SPARKLE[0]; g = SPARKLE[1]; b = SPARKLE[2];
+                        } else if (dmod < 28 && band <= 2) {
+                            r = TURQFLEC[0]; g = TURQFLEC[1]; b = TURQFLEC[2];
+                        }
+
+                        const p = idx * 4;
+                        data[p]     = r;
+                        data[p + 1] = g;
+                        data[p + 2] = b;
+                        data[p + 3] = 255;
+                    }
+                }
+                frames.push(img);
+            }
+            return frames;
+        }
+
+        const waterFrames = makeWaterFrames();
+
+        const waterCanvas = document.createElement('canvas');
+        waterCanvas.width = WATER_TEX_SIZE;
+        waterCanvas.height = WATER_TEX_SIZE;
+        const waterCanvasCtx = waterCanvas.getContext('2d');
+        waterCanvasCtx.putImageData(waterFrames[0], 0, 0);
+
+        const waterTexture = new THREE.CanvasTexture(waterCanvas);
+        waterTexture.magFilter = THREE.NearestFilter;
+        waterTexture.minFilter = THREE.NearestFilter;
+        waterTexture.wrapS = THREE.RepeatWrapping;
+        waterTexture.wrapT = THREE.RepeatWrapping;
+        waterTexture.repeat.set(12, 12);
+        waterTexture.colorSpace = THREE.SRGBColorSpace;
+        waterTexture.generateMipmaps = false;
+        waterTexture.anisotropy = 1;
+
+        let waterFrameIdx = 0;
+        let waterFrameTimer = 0;
+
+        const waterMat = new THREE.MeshBasicMaterial({
+            map: waterTexture,
+            transparent: true,
+            opacity: 0.65,
+            side: THREE.FrontSide,
+            fog: true
+        });
+
+        const water = new THREE.Mesh(waterGeo, waterMat);
+        water.rotation.x = -Math.PI / 2;
+        water.position.set(0, WATER_BASE_Y, WATER_BASE_Z);
+        water.renderOrder = 0;
+        scene.add(water);
+
+        function makeSunsetGlowTexture() {
+            const w = 96, h = 96;
+            const c = document.createElement('canvas');
+            c.width = w; c.height = h;
+            const ctx = c.getContext('2d');
+            const img = ctx.createImageData(w, h);
+            const d = img.data;
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    const dx = (x - w * 0.5) / (w * 0.5);
+                    const dy = (y - h * 0.5) / (h * 0.5);
+                    const dist = Math.sqrt(dx * dx * 1.0 + dy * dy * 1.6);
+                    let a = 1 - dist;
+                    if (a < 0) a = 0;
+                    a = a * a;
+
+                    const r = 255;
+                    const g = Math.round(160 + 60 * (1 - Math.min(1, dist * 1.6)));
+                    const b = Math.round(60 + 90 * (1 - Math.min(1, dist * 1.6)));
+
+                    const p = (y * w + x) * 4;
+                    d[p]     = r;
+                    d[p + 1] = g;
+                    d[p + 2] = b;
+                    d[p + 3] = Math.round(a * 255);
+                }
+            }
+            ctx.putImageData(img, 0, 0);
+            const tex = new THREE.CanvasTexture(c);
+            tex.magFilter = THREE.LinearFilter;
+            tex.minFilter = THREE.LinearFilter;
+            tex.colorSpace = THREE.SRGBColorSpace;
+            return tex;
+        }
+
+        const sunsetGlowMat = new THREE.MeshBasicMaterial({
+            map: makeSunsetGlowTexture(),
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            opacity: 0.55,
+            fog: false
+        });
+        const sunsetGlow = new THREE.Mesh(
+            new THREE.PlaneGeometry(60, 55),
+            sunsetGlowMat
+        );
+        sunsetGlow.rotation.x = -Math.PI / 2;
+        sunsetGlow.position.set(0, WATER_BASE_Y + 0.05, -45);
+        sunsetGlow.renderOrder = 1;
+        scene.add(sunsetGlow);
+
+        const WATER_WAVES = [
+            { amp: 0.14, kx:  0.10, kz: -0.30, w: 0.85 },
+            { amp: 0.10, kx: -0.42, kz: -0.22, w: 1.20 },
+            { amp: 0.06, kx:  0.34, kz: -0.46, w: 1.65 },
+            { amp: 0.035,kx: -0.56, kz: -0.65, w: 2.15 },
+            { amp: 0.02, kx:  0.72, kz: -0.92, w: 2.70 }
+        ];
+
+        function computeWaterWave(worldX, worldZ, t) {
+            let h = 0;
+            for (let i = 0; i < WATER_WAVES.length; i++) {
+                const wv = WATER_WAVES[i];
+                h += Math.sin(worldX * wv.kx + worldZ * wv.kz + t * wv.w) * wv.amp;
+            }
+            return h;
+        }
+
+        function computeWaterWaveDeriv(worldX, worldZ, t, out) {
+            let dhdx = 0, dhdz = 0;
+            for (let i = 0; i < WATER_WAVES.length; i++) {
+                const wv = WATER_WAVES[i];
+                const c = Math.cos(worldX * wv.kx + worldZ * wv.kz + t * wv.w) * wv.amp;
+                dhdx += c * wv.kx;
+                dhdz += c * wv.kz;
+            }
+            out.x = dhdx;
+            out.z = dhdz;
+        }
+
+        const _waveDeriv = { x: 0, z: 0 };
+
+        // =====================================================================
+        // ========== HERFST: ZWEVENDE BLADEREN (LEAF PARTICLE SYSTEM) =========
+        // =====================================================================
+        const LEAF_POOL_SIZE = 24;
+
+        function makeLeafTexture(bodyColorHex) {
+            const c = document.createElement('canvas');
+            c.width = 3;
+            c.height = 2;
+            const ctx = c.getContext('2d');
+            const pattern = [
+                '.X.',
+                'XXX'
+            ];
+            ctx.fillStyle = bodyColorHex;
+            for (let y = 0; y < 2; y++) {
+                for (let x = 0; x < 3; x++) {
+                    if (pattern[y][x] === 'X') ctx.fillRect(x, y, 1, 1);
+                }
+            }
+            const tex = new THREE.CanvasTexture(c);
+            tex.magFilter = THREE.NearestFilter;
+            tex.minFilter = THREE.NearestFilter;
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.generateMipmaps = false;
+            return tex;
+        }
+
+        const leafTexOrange = makeLeafTexture('#D66523');
+        const leafTexYellow = makeLeafTexture('#CC9B23');
+
+        const leafMatOrangeBase = new THREE.MeshBasicMaterial({
+            map: leafTexOrange,
+            transparent: true,
+            depthWrite: false,
+            fog: true,
+            opacity: 0
+        });
+        const leafMatYellowBase = new THREE.MeshBasicMaterial({
+            map: leafTexYellow,
+            transparent: true,
+            depthWrite: false,
+            fog: true,
+            opacity: 0
+        });
+
+        const leaves = [];
+        for (let i = 0; i < LEAF_POOL_SIZE; i++) {
+            const baseMat = (i % 2 === 0) ? leafMatOrangeBase : leafMatYellowBase;
+            const mat = baseMat.clone();
+            const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.16), mat);
+            leaf.rotation.x = -Math.PI / 2;
+            leaf.visible = false;
+            leaf.renderOrder = 3;
+            leaf.userData = {
+                active: false,
+                life: 0,
+                maxLife: 0,
+                vx: 0,
+                vz: 0,
+                baseOpacity: 1
+            };
+            scene.add(leaf);
+            leaves.push(leaf);
+        }
+
+        let leafSpawnTimer = 0.3;
+
+        function spawnLeaf(leaf) {
+            const u = leaf.userData;
+            u.active = true;
+            u.life = 0;
+            u.maxLife = 7 + Math.random() * 4;
+            u.vx = -0.35 + (Math.random() - 0.5) * 0.20;
+            u.vz = 0.55 + (Math.random() - 0.5) * 0.20;
+            u.baseOpacity = 0.85 + Math.random() * 0.15;
+
+            const startX = 6 + Math.random() * 14;
+            const startZ = -22 + Math.random() * 18;
+            leaf.position.set(startX, WATER_BASE_Y, startZ);
+            leaf.rotation.z = Math.random() * Math.PI * 2;
+
+            leaf.material.opacity = 0;
+            leaf.visible = true;
+        }
+
+        function updateLeaves(delta, t) {
+            leafSpawnTimer -= delta;
+            if (leafSpawnTimer <= 0) {
+                leafSpawnTimer = 0.35 + Math.random() * 0.55;
+                for (let i = 0; i < leaves.length; i++) {
+                    if (!leaves[i].userData.active) {
+                        spawnLeaf(leaves[i]);
+                        break;
+                    }
+                }
+            }
+
+            for (let i = 0; i < leaves.length; i++) {
+                const leaf = leaves[i];
+                const u = leaf.userData;
+                if (!u.active) continue;
+
+                u.life += delta;
+                if (u.life >= u.maxLife) {
+                    leaf.visible = false;
+                    u.active = false;
+                    leaf.material.opacity = 0;
+                    continue;
+                }
+
+                leaf.position.x += u.vx * delta;
+                leaf.position.z += u.vz * delta;
+
+                const wave = computeWaterWave(leaf.position.x, leaf.position.z, t);
+                leaf.position.y = WATER_BASE_Y + wave + 0.04;
+
+                const prog = u.life / u.maxLife;
+                let alpha;
+                if (prog < 0.12)      alpha = prog / 0.12;
+                else if (prog > 0.78) alpha = (1 - prog) / 0.22;
+                else                  alpha = 1;
+                if (alpha < 0) alpha = 0;
+                if (alpha > 1) alpha = 1;
+                leaf.material.opacity = alpha * u.baseOpacity;
+            }
+        }
+
+        // =====================================================================
+        // =================== DEBUG COUNTERS ==================================
+        // =====================================================================
+        let dbgWaterUpdateCallsTotal = 0;
+        let dbgWaterUpdateCallsThisSecond = 0;
+        let dbgWaterUpdateCallsPerSec = 0;
+        let dbgLastCallsReset = performance.now();
+
+        let dbgWaterMinY = 0;
+        let dbgWaterMaxY = 0;
+        let dbgFirstVertexY = 0;
+        let dbgPrevFirstVertexY = 0;
+        let dbgFrameDelta = 0;
+        let dbgLastError = 'geen';
+
+        function updateWaterGeometry(t) {
+            dbgWaterUpdateCallsTotal++;
+            dbgWaterUpdateCallsThisSecond++;
+
+            try {
+                const pos = waterPositions.array;
+                const nor = waterNormals.array;
+                const orig = waterOriginalPositions;
+
+                let localMin = Infinity;
+                let localMax = -Infinity;
+
+                for (let i = 0; i < pos.length; i += 3) {
+                    const lx = orig[i];
+                    const ly = orig[i + 1];
+
+                    const worldX = lx;
+                    const worldZ = -ly + WATER_BASE_Z;
+
+                    const wave = computeWaterWave(worldX, worldZ, t);
+                    pos[i + 2] = wave;
+
+                    if (wave < localMin) localMin = wave;
+                    if (wave > localMax) localMax = wave;
+
+                    computeWaterWaveDeriv(worldX, worldZ, t, _waveDeriv);
+                    const nx = -_waveDeriv.x;
+                    const ny = _waveDeriv.z;
+                    const nz = 1;
+                    const invLen = 1 / Math.sqrt(nx * nx + ny * ny + nz * nz);
+                    nor[i]     = nx * invLen;
+                    nor[i + 1] = ny * invLen;
+                    nor[i + 2] = nz * invLen;
+                }
+
+                dbgPrevFirstVertexY = dbgFirstVertexY;
+                dbgFirstVertexY = pos[2];
+                dbgFrameDelta = Math.abs(dbgFirstVertexY - dbgPrevFirstVertexY);
+
+                dbgWaterMinY = localMin;
+                dbgWaterMaxY = localMax;
+
+                waterPositions.needsUpdate = true;
+                waterNormals.needsUpdate = true;
+            } catch (e) {
+                dbgLastError = (e && e.message) ? e.message : String(e);
+            }
+        }
+
+        // =====================================================================
+        // =================== PIER ============================================
+        // =====================================================================
+        const pierMatLight = new THREE.MeshLambertMaterial({ color: 0x5a3a20 });
+        const pierMatDark  = new THREE.MeshLambertMaterial({ color: 0x42280f });
+        const postMat      = new THREE.MeshLambertMaterial({ color: 0x2a1808 });
+        const railMat      = new THREE.MeshLambertMaterial({ color: 0x6a4a25 });
+
+        const PIER_WIDTH = 4.4;
+        const PIER_Z_START = 4;
+        const PIER_Z_END = -10;
+        const PLANK_COUNT = 15;
+        const PLANK_SPACING = (PIER_Z_START - PIER_Z_END) / PLANK_COUNT;
+
+        for (let i = 0; i < PLANK_COUNT; i++) {
+            const mat = (i % 3 === 0) ? pierMatDark : pierMatLight;
+            const plank = new THREE.Mesh(
+                new THREE.BoxGeometry(PIER_WIDTH, 0.15, PLANK_SPACING * 0.94),
+                mat
+            );
+            plank.position.set(0, 0, PIER_Z_START - i * PLANK_SPACING - PLANK_SPACING * 0.5);
+            scene.add(plank);
+        }
+
+        for (let i = 0; i <= 8; i++) {
+            const z = PIER_Z_START - i * (PIER_Z_START - PIER_Z_END) / 8;
+            [-1, 1].forEach(side => {
+                const post = new THREE.Mesh(new THREE.BoxGeometry(0.22, 2.2, 0.22), postMat);
+                post.position.set(side * (PIER_WIDTH / 2 - 0.2), -1.0, z);
+                scene.add(post);
+            });
+        }
+
+        function addRail(x1, z1, x2, z2, y) {
+            const dx = x2 - x1;
+            const dz = z2 - z1;
+            const len = Math.sqrt(dx * dx + dz * dz);
+            const rail = new THREE.Mesh(
+                new THREE.BoxGeometry(len, 0.08, 0.08),
+                railMat
+            );
+            rail.position.set((x1 + x2) / 2, y, (z1 + z2) / 2);
+            rail.rotation.y = Math.atan2(-dz, dx);
+            scene.add(rail);
+        }
+
+        addRail(-PIER_WIDTH/2 + 0.15, 3.5, -PIER_WIDTH/2 + 0.15, -9.5, 0.55);
+        addRail(-PIER_WIDTH/2 + 0.15, 3.5, -PIER_WIDTH/2 + 0.15, -9.5, 1.0);
+        addRail(-PIER_WIDTH/2 + 0.15, 3.5, PIER_WIDTH/2 - 0.15, 3.5, 0.55);
+        addRail(-PIER_WIDTH/2 + 0.15, 3.5, PIER_WIDTH/2 - 0.15, 3.5, 1.0);
+        addRail(-PIER_WIDTH/2 + 0.15, -9.5, PIER_WIDTH/2 - 0.15, -9.5, 0.55);
+        addRail(-PIER_WIDTH/2 + 0.15, -9.5, PIER_WIDTH/2 - 0.15, -9.5, 1.0);
+
+        function addRailPost(x, z) {
+            const p = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.15, 0.1), railMat);
+            p.position.set(x, 0.575, z);
+            scene.add(p);
+        }
+        for (let i = 0; i <= 6; i++) addRailPost(-PIER_WIDTH/2 + 0.15, 3.5 - i * (13 / 6));
+        for (let i = 0; i <= 4; i++) addRailPost(-PIER_WIDTH/2 + 0.15 + i * (PIER_WIDTH - 0.3) / 4, 3.5);
+        for (let i = 0; i <= 4; i++) addRailPost(-PIER_WIDTH/2 + 0.15 + i * (PIER_WIDTH - 0.3) / 4, -9.5);
+
+        const ropeDecoMat = new THREE.MeshLambertMaterial({ color: 0xb0996a });
+        [1.5, -2.5, -6.5].forEach(z => {
+            const rope = new THREE.Mesh(
+                new THREE.TorusGeometry(0.15, 0.03, 5, 10),
+                ropeDecoMat
+            );
+            rope.rotation.y = Math.PI / 2;
+            rope.position.set(-PIER_WIDTH/2 + 0.15, 0.8, z);
+            scene.add(rope);
+        });
+
+        // =====================================================================
+        // ============ SCHUIM TEGEN DE PIER (ANIMATED FOAM) ===================
+        // =====================================================================
+        const FOAM_COLS = 6;
+        const FOAM_ROWS = 40;
+        const FOAM_FRAME_INTERVAL = 0.22;
+        const FOAM_DEPTH = 0.6;
+        const FOAM_LENGTH = (PIER_Z_START - PIER_Z_END) + 0.8;
+        const FOAM_SEG_X = 2;
+        const FOAM_SEG_Y = 28;
+
+        function makeFoamFrames() {
+            const W = FOAM_COLS;
+            const H = FOAM_ROWS;
+            const MINT     = [111, 224, 211];
+            const WHITE    = [255, 255, 255];
+            const DARKFOAM = [ 60, 165, 152];
+
+            const hashA = new Uint16Array(H);
+            const hashB = new Uint16Array(H);
+            for (let i = 0; i < H; i++) {
+                let h = (i * 2654435761) >>> 0;
+                h = (h ^ (h >>> 13)) >>> 0;
+                hashA[i] = h % 1000;
+                h = (i * 40503 + 7777) >>> 0;
+                h = (h ^ (h >>> 11)) >>> 0;
+                hashB[i] = h % 1000;
+            }
+
+            function put(d, p, c, a) {
+                d[p] = c[0]; d[p+1] = c[1]; d[p+2] = c[2]; d[p+3] = a;
+            }
+
+            const frames = [];
+
+            {
+                const img = new ImageData(W, H);
+                const d = img.data;
+                for (let v = 0; v < H; v++) {
+                    for (let u = 0; u < W; u++) {
+                        const p = (v * W + u) * 4;
+                        if (u === 0) {
+                            put(d, p, MINT, 255);
+                        } else if (u === 1 && (hashA[v] % 5) !== 0) {
+                            put(d, p, WHITE, 230);
+                        } else {
+                            d[p+3] = 0;
+                        }
+                    }
+                }
+                frames.push(img);
+            }
+
+            {
+                const img = new ImageData(W, H);
+                const d = img.data;
+                for (let v = 0; v < H; v++) {
+                    for (let u = 0; u < W; u++) {
+                        const p = (v * W + u) * 4;
+                        const r = (hashA[v] + u * 73 + 130) % 100;
+                        if (u === 0) {
+                            put(d, p, WHITE, 255);
+                        } else if (u === 1) {
+                            if (r < 88) put(d, p, MINT, 255);
+                            else d[p+3] = 0;
+                        } else if (u === 2) {
+                            if (r < 55) put(d, p, MINT, 235);
+                            else d[p+3] = 0;
+                        } else if (u === 3) {
+                            if (r < 25) put(d, p, DARKFOAM, 210);
+                            else d[p+3] = 0;
+                        } else if (u === 4) {
+                            if (r < 8) put(d, p, WHITE, 200);
+                            else d[p+3] = 0;
+                        } else {
+                            d[p+3] = 0;
+                        }
+                    }
+                }
+                frames.push(img);
+            }
+
+            {
+                const img = new ImageData(W, H);
+                const d = img.data;
+                for (let v = 0; v < H; v++) {
+                    for (let u = 0; u < W; u++) {
+                        const p = (v * W + u) * 4;
+                        const r = (hashB[v] + u * 41) % 100;
+                        if (u === 0) {
+                            put(d, p, MINT, 140);
+                        } else if (u === 1) {
+                            if (r < 50) put(d, p, MINT, 100);
+                            else d[p+3] = 0;
+                        } else if (u === 2) {
+                            if (r < 14) put(d, p, MINT, 60);
+                            else d[p+3] = 0;
+                        } else {
+                            d[p+3] = 0;
+                        }
+                    }
+                }
+                frames.push(img);
+            }
+
+            return frames;
+        }
+
+        const foamFrames = makeFoamFrames();
+
+        const foamCanvas = document.createElement('canvas');
+        foamCanvas.width = FOAM_COLS;
+        foamCanvas.height = FOAM_ROWS;
+        const foamCtx = foamCanvas.getContext('2d');
+        foamCtx.putImageData(foamFrames[0], 0, 0);
+
+        const foamTexture = new THREE.CanvasTexture(foamCanvas);
+        foamTexture.magFilter = THREE.NearestFilter;
+        foamTexture.minFilter = THREE.NearestFilter;
+        foamTexture.wrapS = THREE.ClampToEdgeWrapping;
+        foamTexture.wrapT = THREE.RepeatWrapping;
+        foamTexture.colorSpace = THREE.SRGBColorSpace;
+        foamTexture.generateMipmaps = false;
+
+        const foamMat = new THREE.MeshBasicMaterial({
+            map: foamTexture,
+            transparent: true,
+            depthWrite: false,
+            fog: true,
+            side: THREE.DoubleSide,
+            opacity: 0.9
+        });
+
+        const foamLeftGeo = new THREE.PlaneGeometry(FOAM_DEPTH, FOAM_LENGTH, FOAM_SEG_X, FOAM_SEG_Y);
+        const foamLeftOrigPos = new Float32Array(foamLeftGeo.attributes.position.array);
+        const foamLeft = new THREE.Mesh(foamLeftGeo, foamMat);
+        foamLeft.rotation.x = -Math.PI / 2;
+        foamLeft.scale.x = -1;
+        foamLeft.position.set(
+            -PIER_WIDTH / 2 - FOAM_DEPTH / 2,
+            WATER_BASE_Y + 0.04,
+            (PIER_Z_START + PIER_Z_END) / 2
+        );
+        foamLeft.renderOrder = 2;
+        scene.add(foamLeft);
+
+        const foamRightGeo = new THREE.PlaneGeometry(FOAM_DEPTH, FOAM_LENGTH, FOAM_SEG_X, FOAM_SEG_Y);
+        const foamRightOrigPos = new Float32Array(foamRightGeo.attributes.position.array);
+        const foamRight = new THREE.Mesh(foamRightGeo, foamMat);
+        foamRight.rotation.x = -Math.PI / 2;
+        foamRight.position.set(
+            PIER_WIDTH / 2 + FOAM_DEPTH / 2,
+            WATER_BASE_Y + 0.04,
+            (PIER_Z_START + PIER_Z_END) / 2
+        );
+        foamRight.renderOrder = 2;
+        scene.add(foamRight);
+
+        let foamFrameIdx = 0;
+
+        function updateFoamGeometry(mesh, origPositions, scaleX, t) {
+            const pos = mesh.geometry.attributes.position.array;
+            const baseX = mesh.position.x;
+            const baseZ = mesh.position.z;
+            for (let i = 0; i < pos.length; i += 3) {
+                const lx = origPositions[i];
+                const ly = origPositions[i + 1];
+                const effX = lx * scaleX;
+                const worldX = baseX + effX;
+                const worldZ = baseZ - ly;
+                pos[i + 2] = computeWaterWave(worldX, worldZ, t);
+            }
+            mesh.geometry.attributes.position.needsUpdate = true;
+        }
+
+        // =====================================================================
+        // =================== VISKRAM =========================================
+        // =====================================================================
+        const SHOP_CENTER = new THREE.Vector3(4.2, 0, 1.6);
+        const SHOP_COUNTER_POS = new THREE.Vector3(2.6, 0.5, 1.6);
+        const SHOP_INTERACT_RADIUS = 1.9;
+        const SHOP_COLLISION = { xMin: 2.0, xMax: 6.5, zMin: -0.4, zMax: 3.6 };
+
+        const stall = new THREE.Group();
+        stall.position.copy(SHOP_CENTER);
+        scene.add(stall);
+
+        const stallPlankMat = new THREE.MeshLambertMaterial({ color: 0x5a3a20 });
+        const stallPlankMat2 = new THREE.MeshLambertMaterial({ color: 0x42280f });
+
+        for (let i = -1; i <= 1; i++) {
+            for (let j = -1; j <= 1; j++) {
+                const mat = ((i + j) % 2 === 0) ? stallPlankMat : stallPlankMat2;
+                const p = new THREE.Mesh(new THREE.BoxGeometry(0.98, 0.15, 0.98), mat);
+                p.position.set(i * 1.0, 0, j * 1.0);
+                stall.add(p);
+            }
+        }
+
+        [[-1.3, -1.3], [1.3, -1.3], [-1.3, 1.3], [1.3, 1.3]].forEach(([x, z]) => {
+            const p = new THREE.Mesh(new THREE.BoxGeometry(0.22, 2.5, 0.22), postMat);
+            p.position.set(x, -1.25, z);
+            stall.add(p);
+        });
+
+        const counterMat = new THREE.MeshLambertMaterial({ color: 0x8a6a48 });
+        const counter = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.0, 2.8), counterMat);
+        counter.position.set(-1.2, 0.5, 0);
+        stall.add(counter);
+
+        const counterTop = new THREE.Mesh(
+            new THREE.BoxGeometry(0.7, 0.1, 2.9),
+            new THREE.MeshLambertMaterial({ color: 0xaa8a58 })
+        );
+        counterTop.position.set(-1.2, 1.05, 0);
+        stall.add(counterTop);
+
+        const backWall = new THREE.Mesh(
+            new THREE.BoxGeometry(0.15, 2.1, 2.8),
+            new THREE.MeshLambertMaterial({ color: 0x6a4a25 })
+        );
+        backWall.position.set(1.3, 1.05, 0);
+        stall.add(backWall);
+
+        [[-1.4, -1.4], [1.4, -1.4], [-1.4, 1.4], [1.4, 1.4]].forEach(([x, z]) => {
+            const p = new THREE.Mesh(new THREE.BoxGeometry(0.18, 2.9, 0.18), postMat);
+            p.position.set(x, 1.45, z);
+            stall.add(p);
+        });
+
+        const beamMat = new THREE.MeshLambertMaterial({ color: 0x2a1808 });
+        [
+            { x: 0, y: 2.85, z: -1.4, w: 3.0, h: 0.15, d: 0.15 },
+            { x: 0, y: 2.85, z: 1.4, w: 3.0, h: 0.15, d: 0.15 },
+            { x: -1.4, y: 2.85, z: 0, w: 0.15, h: 0.15, d: 3.0 },
+            { x: 1.4, y: 2.85, z: 0, w: 0.15, h: 0.15, d: 3.0 }
+        ].forEach(b => {
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, b.d), beamMat);
+            mesh.position.set(b.x, b.y, b.z);
+            stall.add(mesh);
+        });
+
+        const roofMat = new THREE.MeshLambertMaterial({ color: 0xa03020 });
+        const roof = new THREE.Mesh(new THREE.ConeGeometry(2.55, 1.1, 4), roofMat);
+        roof.rotation.y = Math.PI / 4;
+        roof.position.set(0, 3.55, 0);
+        stall.add(roof);
+
+        const roofTrim = new THREE.Mesh(
+            new THREE.BoxGeometry(3.3, 0.12, 3.3),
+            new THREE.MeshLambertMaterial({ color: 0x5a1a10 })
+        );
+        roofTrim.position.set(0, 3.0, 0);
+        stall.add(roofTrim);
+
+        const awningMat = new THREE.MeshLambertMaterial({ color: 0xc04a30 });
+        const awning = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.35, 3.4), awningMat);
+        awning.position.set(-1.55, 2.65, 0);
+        stall.add(awning);
+
+        const awningMat2 = new THREE.MeshLambertMaterial({ color: 0xffeedd });
+        for (let i = 0; i < 5; i++) {
+            const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.36, 0.3), awningMat2);
+            stripe.position.set(-1.55, 2.65, -1.4 + i * 0.7);
+            stall.add(stripe);
+        }
+
+        function makeSignTexture() {
+            const c = document.createElement('canvas');
+            c.width = 512;
+            c.height = 128;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = '#4a2a15';
+            ctx.fillRect(0, 0, 512, 128);
+            ctx.strokeStyle = '#ffcc66';
+            ctx.lineWidth = 6;
+            ctx.strokeRect(8, 8, 496, 112);
+            ctx.fillStyle = '#ffdd88';
+            ctx.font = 'bold 58px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('VISWINKEL', 256, 72);
+            const tex = new THREE.CanvasTexture(c);
+            tex.magFilter = THREE.LinearFilter;
+            tex.minFilter = THREE.LinearFilter;
+            return tex;
+        }
+
+        const signMat = new THREE.MeshBasicMaterial({
+            map: makeSignTexture(),
+            side: THREE.DoubleSide
+        });
+        const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.55), signMat);
+        sign.position.set(-1.6, 2.35, 0);
+        sign.rotation.y = -Math.PI / 2;
+        stall.add(sign);
+
+        const shopCrateMat = new THREE.MeshLambertMaterial({ color: 0x6a4a25 });
+        const fishMat1 = new THREE.MeshLambertMaterial({ color: 0xa0b0c0 });
+        const fishMat2 = new THREE.MeshLambertMaterial({ color: 0x6080a0 });
+        [-0.7, 0.7].forEach((z, idx) => {
+            const crate = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.35, 0.55), shopCrateMat);
+            crate.position.set(-1.05, 1.32, z);
+            crate.rotation.y = (idx === 0 ? 0.15 : -0.22);
+            stall.add(crate);
+
+            const fish = new THREE.Mesh(
+                new THREE.BoxGeometry(0.4, 0.09, 0.16),
+                idx === 0 ? fishMat1 : fishMat2
+            );
+            fish.position.set(-1.05, 1.55, z + 0.05);
+            fish.rotation.y = Math.random() * Math.PI;
+            stall.add(fish);
+        });
+
+        const barrelMat = new THREE.MeshLambertMaterial({ color: 0x5a3a20 });
+        const barrelMat2 = new THREE.MeshLambertMaterial({ color: 0x2a1808 });
+        [[1.1, -1.2], [1.1, 1.4]].forEach(([x, z]) => {
+            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.95, 10), barrelMat);
+            barrel.position.set(x, 0.475, z);
+            stall.add(barrel);
+            const band = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.035, 5, 12), barrelMat2);
+            band.rotation.x = Math.PI / 2;
+            band.position.set(x, 0.7, z);
+            stall.add(band);
+            const band2 = band.clone();
+            band2.position.y = 0.25;
+            stall.add(band2);
+        });
+
+        const ropeCoil = new THREE.Mesh(
+            new THREE.TorusGeometry(0.28, 0.06, 6, 12),
+            new THREE.MeshLambertMaterial({ color: 0xb0996a })
+        );
+        ropeCoil.rotation.x = Math.PI / 2;
+        ropeCoil.position.set(0.7, 0.1, -1.0);
+        stall.add(ropeCoil);
+
+        const netMat = new THREE.MeshLambertMaterial({ color: 0x9a8050, transparent: true, opacity: 0.7 });
+        const net = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 1.2), netMat);
+        net.position.set(1.38, 1.4, 1.0);
+        net.rotation.y = -Math.PI / 2;
+        stall.add(net);
+
+        const lanternMat = new THREE.MeshLambertMaterial({
+            color: 0xffcc66,
+            emissive: 0xffaa33,
+            emissiveIntensity: 1.6
+        });
+        [[-1.0, 0.9], [1.0, -0.9]].forEach(([x, z]) => {
+            const chain = new THREE.Mesh(
+                new THREE.BoxGeometry(0.03, 0.4, 0.03),
+                beamMat
+            );
+            chain.position.set(x, 2.65, z);
+            stall.add(chain);
+
+            const l = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.28, 0.2), lanternMat);
+            l.position.set(x, 2.4, z);
+            stall.add(l);
+        });
+
+        const stallLight = new THREE.PointLight(0xffaa55, 1.0, 10);
+        stallLight.position.set(SHOP_CENTER.x - 1.2, 2.3, SHOP_CENTER.z);
+        scene.add(stallLight);
+
+        // =====================================================================
+        // =================== EILANDEN — SILHOUETTEN OP HORIZON ===============
+        // =====================================================================
+        const islandMat = new THREE.MeshBasicMaterial({ color: 0x2a1a30 });
+        const islandMat2 = new THREE.MeshBasicMaterial({ color: 0x1a0f25 });
+        const islandMat3 = new THREE.MeshBasicMaterial({ color: 0x3a1a30 });
+
+        const island = new THREE.Mesh(
+            new THREE.ConeGeometry(20, 10, 6),
+            islandMat
+        );
+        island.position.set(-65, 1, -100);
+        scene.add(island);
+
+        const islandSub = new THREE.Mesh(
+            new THREE.ConeGeometry(12, 6, 5),
+            islandMat3
+        );
+        islandSub.position.set(-80, 0, -95);
+        scene.add(islandSub);
+
+        const island2 = new THREE.Mesh(
+            new THREE.ConeGeometry(15, 8, 5),
+            islandMat2
+        );
+        island2.position.set(70, 1, -95);
+        scene.add(island2);
+
+        const island3 = new THREE.Mesh(
+            new THREE.ConeGeometry(8, 4, 5),
+            islandMat
+        );
+        island3.position.set(15, 0, -110);
+        scene.add(island3);
+
+        // =====================================================================
+        // =================== HENGEL ==========================================
+        // =====================================================================
+        const rodPivot = new THREE.Group();
+        rodPivot.position.set(0.35, -0.7, -0.55);
+        camera.add(rodPivot);
+
+        const rod = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.012, 0.032, 2.4, 6),
+            new THREE.MeshLambertMaterial({ color: 0x4a2818 })
+        );
+        rod.position.set(0, 1.2, 0);
+        rodPivot.add(rod);
+
+        const grip = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.038, 0.038, 0.35, 8),
+            new THREE.MeshLambertMaterial({ color: 0x120a05 })
+        );
+        grip.position.set(0, 0.18, 0);
+        rodPivot.add(grip);
+
+        const reel = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.09, 0.09, 0.05, 12),
+            new THREE.MeshLambertMaterial({ color: 0x5a5a5a })
+        );
+        reel.rotation.z = Math.PI / 2;
+        reel.position.set(0.09, 0.42, 0);
+        rodPivot.add(reel);
+
+        const tipRing = new THREE.Mesh(
+            new THREE.TorusGeometry(0.035, 0.007, 4, 8),
+            new THREE.MeshLambertMaterial({ color: 0x1a1a1a })
+        );
+        tipRing.position.set(0, 2.4, 0);
+        tipRing.rotation.x = Math.PI / 2;
+        rodPivot.add(tipRing);
+
+        const ROD_BASE_X = -1.0;
+        const ROD_BASE_Y = 0.0;
+        const ROD_BASE_Z = 0.18;
+        rodPivot.rotation.set(ROD_BASE_X, ROD_BASE_Y, ROD_BASE_Z);
+
+        const ROD_TIP_LOCAL = new THREE.Vector3(0, 2.4, 0);
+
+        const bobber = new THREE.Group();
+        const bobberTop = new THREE.Mesh(
+            new THREE.SphereGeometry(0.12, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2),
+            new THREE.MeshLambertMaterial({ color: 0xff2222 })
+        );
+        bobber.add(bobberTop);
+        const bobberBottom = new THREE.Mesh(
+            new THREE.SphereGeometry(0.12, 8, 6, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2),
+            new THREE.MeshLambertMaterial({ color: 0xffffff })
+        );
+        bobber.add(bobberBottom);
+        bobber.visible = false;
+        scene.add(bobber);
+
+        const bobberRippleMat = new THREE.MeshBasicMaterial({
+            color: 0xddeeff,
+            transparent: true,
+            opacity: 0.5,
+            side: THREE.DoubleSide,
+            depthWrite: false
+        });
+        const bobberRipple = new THREE.Mesh(
+            new THREE.RingGeometry(0.18, 0.32, 20),
+            bobberRippleMat
+        );
+        bobberRipple.rotation.x = -Math.PI / 2;
+        bobberRipple.visible = false;
+        scene.add(bobberRipple);
+
+        const lineGeo = new THREE.BufferGeometry();
+        lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+        const lineMat = new THREE.LineBasicMaterial({ color: 0xdddddd });
+        const fishingLine = new THREE.Line(lineGeo, lineMat);
+        fishingLine.visible = false;
+        scene.add(fishingLine);
+
+        // =================== FISH DATA (FROZEN) ==============================
+        const fishTypes = [
+            { name: 'Sardine',         color: 0xa0b0c0, rarity: 'common',    weight: 30,   value: 8 },
+            { name: 'Makreel',         color: 0x4a7a9a, rarity: 'common',    weight: 25,   value: 12 },
+            { name: 'Haring',          color: 0x8090a0, rarity: 'common',    weight: 20,   value: 10 },
+            { name: 'Forel',           color: 0xc09060, rarity: 'uncommon',  weight: 10,   value: 30 },
+            { name: 'Baars',           color: 0x607040, rarity: 'uncommon',  weight: 7,    value: 25 },
+            { name: 'Zalm',            color: 0xe08080, rarity: 'uncommon',  weight: 5,    value: 40 },
+            { name: 'Tonijn',          color: 0x3050a0, rarity: 'rare',      weight: 2,    value: 120 },
+            { name: 'Zwaardvis',       color: 0x203040, rarity: 'rare',      weight: 0.8,  value: 180 },
+            { name: 'Gouden Koi',      color: 0xffd700, rarity: 'legendary', weight: 0.15, value: 800 },
+            { name: 'Oude Coelacanth', color: 0x40a0a0, rarity: 'legendary', weight: 0.05, value: 1500 }
+        ];
+
+        const rarityColors = {
+            common: '#cccccc', uncommon: '#44ff44', rare: '#4488ff', legendary: '#ffaa00'
+        };
+        const rarityNames = {
+            common: 'Gewoon', uncommon: 'Ongewoon', rare: 'Zeldzaam', legendary: 'Legendarisch'
+        };
+
+        function pickRandomFish() {
+            const total = fishTypes.reduce((s, f) => s + f.weight, 0);
+            let r = Math.random() * total;
+            for (const f of fishTypes) {
+                r -= f.weight;
+                if (r <= 0) return f;
+            }
+            return fishTypes[0];
+        }
+
+        let coins = 0;
+
+        const STORAGE_KEY_COINS = 'sunsetFisheryCoins_v1';
+        const STORAGE_KEY_INV   = 'sunsetFisheryInventory_v1';
+
+        function getFishPrice(name) {
+            for (const f of fishTypes) {
+                if (f.name === name && typeof f.value === 'number' && f.value > 0) {
+                    return f.value;
+                }
+            }
+            const item = inventory[name];
+            if (item && typeof item.value === 'number' && item.value > 0) {
+                return item.value;
+            }
+            return 0;
+        }
+
+        function updateCoinUI() {
+            const coinEl = document.getElementById('coin-amount');
+            if (coinEl) coinEl.textContent = String(coins);
+            const shopCoinsEl = document.getElementById('shop-coins');
+            if (shopCoinsEl) shopCoinsEl.textContent = String(coins);
+        }
+
+        function showSaleToast(amount, fishName, count) {
+            const toast = document.getElementById('sale-toast');
+            if (!toast) return;
+            let text;
+            if (fishName) {
+                text = `+${amount} 💰 ${fishName}`;
+            } else if (count && count > 1) {
+                text = `+${amount} 💰 (${count} vissen)`;
+            } else {
+                text = `+${amount} 💰`;
+            }
+            toast.textContent = text;
+            toast.classList.add('show');
+            clearTimeout(toast._hideTimer);
+            toast._hideTimer = setTimeout(() => {
+                toast.classList.remove('show');
+            }, 1600);
+        }
+
+        function saveProgress() {
+            try {
+                localStorage.setItem(STORAGE_KEY_COINS, String(coins));
+            } catch (e) {
+                console.warn('[Save] Kon munten niet opslaan:', e);
+            }
+            try {
+                localStorage.setItem(STORAGE_KEY_INV, JSON.stringify(inventory));
+            } catch (e) {
+                console.warn('[Save] Kon inventory niet opslaan:', e);
+            }
+        }
+
+        function loadProgress() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY_COINS);
+                if (raw !== null) {
+                    const n = parseInt(raw, 10);
+                    if (Number.isFinite(n) && n >= 0) {
+                        coins = n;
+                    } else {
+                        coins = 0;
+                    }
+                }
+            } catch (e) {
+                console.warn('[Load] Kon munten niet laden:', e);
+                coins = 0;
+            }
+
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY_INV);
+                if (raw !== null) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                        for (const name in parsed) {
+                            const item = parsed[name];
+                            if (!item || typeof item !== 'object') continue;
+                            if (typeof item.count !== 'number' || item.count <= 0) continue;
+                            if (typeof item.color !== 'number') continue;
+                            if (typeof item.value !== 'number' || item.value <= 0) continue;
+                            inventory[name] = {
+                                count: Math.floor(item.count),
+                                color: item.color,
+                                rarity: typeof item.rarity === 'string' ? item.rarity : 'common',
+                                value: item.value
+                            };
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('[Load] Kon inventory niet laden:', e);
+            }
+        }
+
+        const inventory = {};
+
+        function addFishToInventory(fish) {
+            if (!inventory[fish.name]) {
+                inventory[fish.name] = {
+                    count: 0, color: fish.color, rarity: fish.rarity, value: fish.value
+                };
+            }
+            inventory[fish.name].count++;
+            updateBackpackCount();
+            updateInventoryUI();
+            updateShopUI();
+            saveProgress();
+        }
+
+        function updateBackpackCount() {
+            let total = 0;
+            for (const key in inventory) total += inventory[key].count;
+            const el = document.getElementById('backpack-count');
+            if (el) el.textContent = total;
+        }
+
+        function updateInventoryUI() {
+            const grid = document.getElementById('inventory-grid');
+            if (!grid) return;
+            grid.innerHTML = '';
+            const items = Object.entries(inventory);
+            if (items.length === 0) {
+                grid.innerHTML = '<div id="empty-msg">Je rugtas is leeg... Ga vissen vangen!</div>';
+                const totalEl = document.getElementById('total-value');
+                if (totalEl) totalEl.querySelector('.amount').textContent = '0';
+                return;
+            }
+            const rarityOrder = { legendary: 0, rare: 1, uncommon: 2, common: 3 };
+            items.sort((a, b) => rarityOrder[a[1].rarity] - rarityOrder[b[1].rarity]);
+            let totalValue = 0;
+            items.forEach(([name, data]) => {
+                const colorHex = '#' + data.color.toString(16).padStart(6, '0');
+                const slot = document.createElement('div');
+                slot.className = 'fish-slot';
+                slot.innerHTML = `
+                    <div class="fish-count">x${data.count}</div>
+                    ${renderFishPixelArt(colorHex)}
+                    <div class="fish-name">${name}</div>
+                    <div class="fish-rarity" style="color:${rarityColors[data.rarity]}">${rarityNames[data.rarity]}</div>
+                    <div class="fish-value">${data.value} goud / stuk</div>
+                `;
+                grid.appendChild(slot);
+                totalValue += data.value * data.count;
+            });
+            const totalEl = document.getElementById('total-value');
+            if (totalEl) totalEl.querySelector('.amount').textContent = totalValue;
+        }
+
+        let shopOpen = false;
+        let sellLock = false;
+
+        function getFishColorHex(data) {
+            const c = (data && typeof data.color === 'number') ? data.color : 0x888888;
+            return '#' + c.toString(16).padStart(6, '0');
+        }
+
+        function updateShopUI() {
+            const grid = document.getElementById('shop-grid');
+            if (!grid) return;
+            grid.innerHTML = '';
+
+            const shopCoinsEl = document.getElementById('shop-coins');
+            if (shopCoinsEl) shopCoinsEl.textContent = String(coins);
+
+            const items = Object.entries(inventory).filter(([name, data]) =>
+                data && data.count > 0 && getFishPrice(name) > 0
+            );
+
+            const sellAllBtn = document.getElementById('sell-all-btn');
+            const totalEl = document.getElementById('shop-total');
+
+            if (items.length === 0) {
+                grid.innerHTML = '<div class="shop-empty-msg">Geen vissen om te verkopen. Ga eerst vissen vangen!</div>';
+                if (totalEl) totalEl.textContent = '0';
+                if (sellAllBtn) sellAllBtn.disabled = true;
+                return;
+            }
+
+            const rarityOrder = { legendary: 0, rare: 1, uncommon: 2, common: 3 };
+            items.sort((a, b) => rarityOrder[a[1].rarity] - rarityOrder[b[1].rarity]);
+
+            let totalValue = 0;
+
+            items.forEach(([name, data]) => {
+                const price = getFishPrice(name);
+                const subtotal = price * data.count;
+                totalValue += subtotal;
+
+                const row = document.createElement('div');
+                row.className = 'shop-item';
+                row.innerHTML = `
+                    <div class="shop-item-icon">${renderFishPixelArt(getFishColorHex(data))}</div>
+                    <div class="shop-item-info">
+                        <div class="shop-item-name">${name}</div>
+                        <div class="shop-item-rarity" style="color:${rarityColors[data.rarity] || '#ccc'}">
+                            ${rarityNames[data.rarity] || data.rarity} · x${data.count}
+                        </div>
+                    </div>
+                    <div class="shop-item-price">
+                        <span class="shop-price-total">${subtotal} 💰</span>
+                        <span class="shop-price-unit">${price} / stuk</span>
+                    </div>
+                    <button class="shop-sell-btn" data-fish="${name}">Verkoop 1</button>
+                `;
+                grid.appendChild(row);
+            });
+
+            if (totalEl) totalEl.textContent = String(totalValue);
+            if (sellAllBtn) sellAllBtn.disabled = false;
+        }
+
+        function sellFish(name) {
+            if (sellLock) return;
+            sellLock = true;
+            setTimeout(() => { sellLock = false; }, 180);
+
+            const item = inventory[name];
+            if (!item || item.count <= 0) return;
+
+            const price = getFishPrice(name);
+            if (price <= 0) return;
+
+            item.count--;
+            if (item.count <= 0) delete inventory[name];
+
+            coins += price;
+            if (coins < 0) coins = 0;
+
+            updateCoinUI();
+            updateBackpackCount();
+            updateInventoryUI();
+            updateShopUI();
+            saveProgress();
+            showSaleToast(price, name);
+        }
+
+        function sellAllFish() {
+            if (sellLock) return;
+            sellLock = true;
+            setTimeout(() => { sellLock = false; }, 350);
+
+            let totalGain = 0;
+            let totalCount = 0;
+            const toRemove = [];
+
+            for (const name in inventory) {
+                const item = inventory[name];
+                if (!item || item.count <= 0) continue;
+                const price = getFishPrice(name);
+                if (price <= 0) continue;
+                totalGain += price * item.count;
+                totalCount += item.count;
+                toRemove.push(name);
+            }
+
+            if (totalGain <= 0 || toRemove.length === 0) return;
+
+            for (const name of toRemove) delete inventory[name];
+
+            coins += totalGain;
+            if (coins < 0) coins = 0;
+
+            updateCoinUI();
+            updateBackpackCount();
+            updateInventoryUI();
+            updateShopUI();
+            saveProgress();
+            showSaleToast(totalGain, null, totalCount);
+        }
+
+        function openShop() {
+            if (shopOpen) return;
+            if (inventoryOpen) {
+                inventoryOpen = false;
+                const invEl = document.getElementById('inventory-overlay');
+                if (invEl) invEl.style.display = 'none';
+            }
+            shopOpen = true;
+            const el = document.getElementById('shop-overlay');
+            if (el) el.style.display = 'flex';
+            updateShopUI();
+            updateCoinUI();
+            promptEl.style.display = 'none';
+            try { controls.unlock(); } catch(e) {}
+        }
+
+        function closeShop() {
+            if (!shopOpen) return;
+            shopOpen = false;
+            const el = document.getElementById('shop-overlay');
+            if (el) el.style.display = 'none';
+            if (!inventoryOpen) {
+                try { controls.lock(); } catch(e) {}
+            }
+        }
+
+        document.getElementById('close-shop').addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeShop();
+        });
+
+        document.getElementById('shop-overlay').addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+
+        document.getElementById('shop-grid').addEventListener('click', (e) => {
+            const btn = e.target.closest('.shop-sell-btn');
+            if (!btn) return;
+            e.stopPropagation();
+            const fishName = btn.dataset.fish;
+            if (fishName) sellFish(fishName);
+        });
+
+        document.getElementById('sell-all-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            sellAllFish();
+        });
+
+        let gameState = 'idle';
+        let stateTimer = 0;
+        let biteWindow = 0;
+        let castStartPos = new THREE.Vector3();
+        let castEndPos = new THREE.Vector3();
+        let totalCatches = 0;
+        let inventoryOpen = false;
+        let nearShop = false;
+
+        const promptEl = document.getElementById('prompt');
+        const debugEl = document.getElementById('debug');
+        const catchCounterEl = document.getElementById('catch-counter');
+        const biteIndicator = document.getElementById('bite-indicator');
+        const fishCaughtEl = document.getElementById('fish-caught');
+        const inventoryOverlay = document.getElementById('inventory-overlay');
+
+        function setPrompt(text, show = true) {
+            promptEl.textContent = text;
+            promptEl.style.display = show ? 'block' : 'none';
+        }
+
+        function toggleInventory() {
+            if (shopOpen) {
+                closeShop();
+                return;
+            }
+            inventoryOpen = !inventoryOpen;
+            if (inventoryOpen) {
+                inventoryOverlay.style.display = 'flex';
+                updateInventoryUI();
+                playOpenInv();
+                try { controls.unlock(); } catch(e) {}
+                promptEl.style.display = 'none';
+            } else {
+                inventoryOverlay.style.display = 'none';
+                try { controls.lock(); } catch(e) {}
+            }
+        }
+
+        document.getElementById('backpack-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            initAudio();
+            startAmbient();
+            toggleInventory();
+        });
+
+        document.getElementById('close-inv').addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleInventory();
+        });
+
+        inventoryOverlay.addEventListener('click', (e) => { e.stopPropagation(); });
+
+        const debugPanelEl = document.getElementById('debug-panel');
+        const debugShowBtnEl = document.getElementById('debug-show-btn');
+        let debugPanelVisible = true;
+
+        function setDebugPanelVisible(visible) {
+            debugPanelVisible = visible;
+            debugPanelEl.style.display = visible ? 'block' : 'none';
+            debugShowBtnEl.style.display = visible ? 'none' : 'block';
+        }
+
+        document.getElementById('debug-hide').addEventListener('click', (e) => {
+            e.stopPropagation();
+            setDebugPanelVisible(false);
+        });
+
+        debugShowBtnEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setDebugPanelVisible(true);
+        });
+
+        const keys = {};
+
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'F2') {
+                e.preventDefault();
+                setDebugPanelVisible(!debugPanelVisible);
+                return;
+            }
+
+            initAudio();
+            startAmbient();
+
+            if (e.code === 'Escape') {
+                if (shopOpen) { closeShop(); return; }
+                if (inventoryOpen) { toggleInventory(); return; }
+                return;
+            }
+
+            if (e.code === 'KeyI') {
+                toggleInventory();
+                return;
+            }
+
+            if (e.code === 'KeyE' && shopOpen) {
+                closeShop();
+                return;
+            }
+
+            if (inventoryOpen || shopOpen) return;
+
+            keys[e.code] = true;
+            if (e.code === 'KeyE') {
+                if (gameState === 'idle') {
+                    if (nearShop) openShop();
+                    else startCast();
+                } else if (gameState === 'bite') {
+                    catchFish();
+                }
+            }
+        });
+        document.addEventListener('keyup', (e) => keys[e.code] = false);
+
+        function startCast() {
+            gameState = 'casting';
+            stateTimer = 0;
+
+            castStartPos.copy(camera.position);
+            const dir = new THREE.Vector3();
+            camera.getWorldDirection(dir);
+            dir.y = 0;
+            dir.normalize();
+            const distance = 10 + Math.random() * 8;
+            castEndPos.copy(camera.position).add(dir.multiplyScalar(distance));
+            castEndPos.y = -0.5;
+
+            bobber.visible = true;
+            fishingLine.visible = true;
+            bobber.position.copy(castStartPos);
+
+            playWhoosh();
+            setPrompt('');
+        }
+
+        function landCast() {
+            playSplash();
+            gameState = 'waiting';
+            stateTimer = -(2 + Math.random() * 5);
+        }
+
+        function triggerBite() {
+            gameState = 'bite';
+            biteWindow = 1.5;
+            playDing();
+            biteIndicator.style.display = 'block';
+            setPrompt('DRUK E!', true);
+        }
+
+        function catchFish() {
+            initAudio();
+
+            const fish = pickRandomFish();
+            gameState = 'caught';
+            biteIndicator.style.display = 'none';
+            setPrompt('');
+
+            playCatch(fish.rarity);
+
+            totalCatches++;
+            catchCounterEl.textContent = 'Vangst: ' + totalCatches;
+
+            const price = getFishPrice(fish.name);
+            fishCaughtEl.innerHTML = `
+                <div class="name" style="color: #${fish.color.toString(16).padStart(6, '0')}">${fish.name}</div>
+                <div class="rarity" style="color: ${rarityColors[fish.rarity]}">${rarityNames[fish.rarity]}</div>
+                <div class="value">Waarde: ${price} 💰</div>
+            `;
+            fishCaughtEl.style.borderColor = rarityColors[fish.rarity];
+            fishCaughtEl.style.display = 'block';
+
+            addFishToInventory(fish);
+
+            setTimeout(() => {
+                fishCaughtEl.style.display = 'none';
+                bobber.visible = false;
+                fishingLine.visible = false;
+                gameState = 'idle';
+            }, 2200);
+        }
+
+        function missFish() {
+            gameState = 'missed';
+            biteIndicator.style.display = 'none';
+            playMiss();
+            setPrompt('Mis! De vis ontsnapte...');
+            setTimeout(() => {
+                bobber.visible = false;
+                fishingLine.visible = false;
+                gameState = 'idle';
+            }, 1500);
+        }
+
+        const forward = new THREE.Vector3();
+        const right = new THREE.Vector3();
+        const up = new THREE.Vector3(0, 1, 0);
+        const move = new THREE.Vector3();
+        const WALK_SPEED = 2.4;
+        const PLAYER_RADIUS = 0.35;
+
+        let frames = 0, fps = 0, lastFpsTime = performance.now();
+
+        function updateRenderTargetSize() {
+            const aspect = window.innerWidth / window.innerHeight;
+            const w = 480;
+            const h = Math.round(w / aspect);
+            renderTarget.setSize(w, h);
+        }
+
+        const dbgMeshEl     = document.getElementById('dbg-mesh');
+        const dbgMatEl      = document.getElementById('dbg-mat');
+        const dbgCallsEl    = document.getElementById('dbg-calls');
+        const dbgAmpEl      = document.getElementById('dbg-amp');
+        const dbgMinEl      = document.getElementById('dbg-min');
+        const dbgMaxEl      = document.getElementById('dbg-max');
+        const dbgDeltaEl    = document.getElementById('dbg-delta');
+        const dbgFpsEl      = document.getElementById('dbg-fps');
+        const dbgErrEl      = document.getElementById('dbg-err');
+
+        let lastDebugPanelUpdate = 0;
+
+        function updateDebugPanel() {
+            const now = performance.now();
+            if (now - lastDebugPanelUpdate < 200) return;
+            lastDebugPanelUpdate = now;
+
+            const meshOk = !!(water && water.isMesh && water.geometry &&
+                water.geometry.attributes && water.geometry.attributes.position);
+            dbgMeshEl.textContent = meshOk ? 'OK (' + (waterGeo.attributes.position.count) + ' v)' : 'FOUT';
+            dbgMeshEl.className = 'debug-value ' + (meshOk ? 'ok' : 'bad');
+
+            dbgMatEl.textContent = waterMat && waterMat.type ? waterMat.type : '?';
+
+            dbgCallsEl.textContent = dbgWaterUpdateCallsPerSec;
+            dbgCallsEl.className = 'debug-value ' + (dbgWaterUpdateCallsPerSec > 10 ? 'ok' : (dbgWaterUpdateCallsPerSec > 0 ? 'warn' : 'bad'));
+
+            let totalAmp = 0;
+            for (let i = 0; i < WATER_WAVES.length; i++) totalAmp += WATER_WAVES[i].amp;
+            dbgAmpEl.textContent = totalAmp.toFixed(3);
+
+            dbgMinEl.textContent = dbgWaterMinY.toFixed(4);
+            dbgMaxEl.textContent = dbgWaterMaxY.toFixed(4);
+
+            const delta = dbgFrameDelta;
+            dbgDeltaEl.textContent = delta.toFixed(5);
+            dbgDeltaEl.className = 'debug-value ' + (delta > 0.00005 ? 'ok' : (delta > 0 ? 'warn' : 'bad'));
+
+            dbgFpsEl.textContent = fps;
+            dbgFpsEl.className = 'debug-value ' + (fps >= 25 ? 'ok' : (fps >= 15 ? 'warn' : 'bad'));
+
+            dbgErrEl.textContent = dbgLastError;
+            dbgErrEl.className = 'debug-value ' + (dbgLastError === 'geen' ? 'ok' : 'bad');
+        }
+
+        let lastTime = performance.now();
+        let clockTime = 0;
+
+        const WATER_FLOW_SPEED_Y = 0.05;
+        const WATER_FLOW_SPEED_X = 0.015;
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const now = performance.now();
+            let delta = (now - lastTime) / 1000;
+            lastTime = now;
+            if (delta > 0.1) delta = 0.1;
+            clockTime += delta;
+
+            frames++;
+            if (now - lastFpsTime > 1000) {
+                fps = frames;
+                frames = 0;
+                lastFpsTime = now;
+            }
+
+            if (now - dbgLastCallsReset > 1000) {
+                dbgWaterUpdateCallsPerSec = dbgWaterUpdateCallsThisSecond;
+                dbgWaterUpdateCallsThisSecond = 0;
+                dbgLastCallsReset = now;
+            }
+
+            updateAmbientFade(delta);
+            updateBgMusicFade(delta);
+
+            waterFrameTimer += delta;
+            if (waterFrameTimer >= WATER_FRAME_INTERVAL) {
+                waterFrameTimer -= WATER_FRAME_INTERVAL;
+                waterFrameIdx = (waterFrameIdx + 1) % waterFrames.length;
+                waterCanvasCtx.putImageData(waterFrames[waterFrameIdx], 0, 0);
+                waterTexture.needsUpdate = true;
+            }
+
+            waterTexture.offset.y = (waterTexture.offset.y + delta * WATER_FLOW_SPEED_Y) % 1;
+            waterTexture.offset.x = (waterTexture.offset.x + delta * WATER_FLOW_SPEED_X) % 1;
+
+            try {
+                updateWaterGeometry(clockTime);
+            } catch (e) {
+                dbgLastError = (e && e.message) ? e.message : String(e);
+            }
+
+            try {
+                updateLeaves(delta, clockTime);
+            } catch (e) {
+                dbgLastError = (e && e.message) ? e.message : String(e);
+            }
+
+            const foamPhase = Math.floor(clockTime / FOAM_FRAME_INTERVAL) % foamFrames.length;
+            if (foamPhase !== foamFrameIdx) {
+                foamFrameIdx = foamPhase;
+                foamCtx.putImageData(foamFrames[foamFrameIdx], 0, 0);
+                foamTexture.needsUpdate = true;
+            }
+
+            try {
+                updateFoamGeometry(foamLeft,  foamLeftOrigPos,  -1, clockTime);
+                updateFoamGeometry(foamRight, foamRightOrigPos,  1, clockTime);
+            } catch (e) {
+                dbgLastError = (e && e.message) ? e.message : String(e);
+            }
+
+            const uiBlocking = inventoryOpen || shopOpen;
+
+            const sdx = camera.position.x - SHOP_COUNTER_POS.x;
+            const sdz = camera.position.z - SHOP_COUNTER_POS.z;
+            const distToShop = Math.sqrt(sdx * sdx + sdz * sdz);
+            nearShop = distToShop < SHOP_INTERACT_RADIUS;
+
+            if (!uiBlocking) {
+                camera.getWorldDirection(forward);
+                forward.y = 0;
+                forward.normalize();
+                right.crossVectors(forward, up).normalize();
+
+                move.set(0, 0, 0);
+                if (keys['KeyW']) move.add(forward);
+                if (keys['KeyS']) move.sub(forward);
+                if (keys['KeyD']) move.add(right);
+                if (keys['KeyA']) move.sub(right);
+
+                if (move.lengthSq() > 0) {
+                    move.normalize().multiplyScalar(WALK_SPEED * delta);
+                    camera.position.x += move.x;
+                    camera.position.z += move.z;
+                }
+
+                camera.position.x = Math.max(-1.9, Math.min(1.9, camera.position.x));
+                camera.position.z = Math.max(-9.5, Math.min(3.5, camera.position.z));
+
+                if (camera.position.x > SHOP_COLLISION.xMin - PLAYER_RADIUS &&
+                    camera.position.x < SHOP_COLLISION.xMax + PLAYER_RADIUS &&
+                    camera.position.z > SHOP_COLLISION.zMin - PLAYER_RADIUS &&
+                    camera.position.z < SHOP_COLLISION.zMax + PLAYER_RADIUS) {
+                    camera.position.x = SHOP_COLLISION.xMin - PLAYER_RADIUS;
+                }
+
+                camera.position.y = 1.7;
+            }
+
+            if (bobber.visible && gameState !== 'casting' && gameState !== 'caught') {
+                const bobberWave = computeWaterWave(bobber.position.x, bobber.position.z, clockTime);
+                bobberRipple.visible = true;
+                bobberRipple.position.set(
+                    bobber.position.x,
+                    WATER_BASE_Y + bobberWave + 0.02,
+                    bobber.position.z
+                );
+                const phase = (clockTime * 1.3) % 1;
+                bobberRipple.scale.setScalar(1 + phase * 1.6);
+                bobberRipple.material.opacity = 0.5 * (1 - phase);
+            } else {
+                bobberRipple.visible = false;
+            }
+
+            clouds.forEach(cloud => {
+                cloud.position.x += cloud.userData.speed * delta;
+                if (cloud.position.x > cloud.userData.startX + cloud.userData.range) {
+                    cloud.position.x = cloud.userData.startX - cloud.userData.range;
+                }
+            });
+
+            let targetRotX = ROD_BASE_X + Math.sin(clockTime * 1.4) * 0.025;
+            let targetRotY = ROD_BASE_Y + Math.cos(clockTime * 1.1) * 0.015;
+            let targetRotZ = ROD_BASE_Z + Math.sin(clockTime * 0.9) * 0.02;
+
+            if (!uiBlocking) {
+                if (gameState === 'casting') {
+                    stateTimer += delta;
+                    if (stateTimer < 0.3) {
+                        const p = stateTimer / 0.3;
+                        targetRotX = ROD_BASE_X - p * 0.55;
+                        targetRotZ = ROD_BASE_Z + p * 0.12;
+                    } else if (stateTimer < 1.1) {
+                        const p = (stateTimer - 0.3) / 0.8;
+                        targetRotX = ROD_BASE_X - 0.55 + p * 1.0;
+                        targetRotZ = ROD_BASE_Z + 0.12 - p * 0.45;
+                        bobber.visible = true;
+                        bobber.position.lerpVectors(castStartPos, castEndPos, p);
+                        bobber.position.y = castStartPos.y + (castEndPos.y - castStartPos.y) * p + Math.sin(p * Math.PI) * 4;
+                    }
+                    if (stateTimer >= 1.1) landCast();
+                }
+                else if (gameState === 'waiting') {
+                    stateTimer += delta;
+                    const bobberWave = computeWaterWave(bobber.position.x, bobber.position.z, clockTime);
+                    bobber.position.y = WATER_BASE_Y + bobberWave + 0.05 + Math.sin(clockTime * 3) * 0.03;
+                    if (stateTimer >= 0) triggerBite();
+                }
+                else if (gameState === 'bite') {
+                    biteWindow -= delta;
+                    targetRotX = ROD_BASE_X + Math.sin(clockTime * 40) * 0.12;
+                    targetRotZ = ROD_BASE_Z + Math.cos(clockTime * 35) * 0.06;
+                    const bobberWave = computeWaterWave(bobber.position.x, bobber.position.z, clockTime);
+                    bobber.position.y = WATER_BASE_Y + bobberWave + Math.sin(clockTime * 20) * 0.10;
+                    if (biteWindow <= 0) missFish();
+                }
+                else if (gameState === 'caught') {
+                    targetRotX = ROD_BASE_X - 0.65;
+                    targetRotZ = ROD_BASE_Z + 0.25;
+                    targetRotY = ROD_BASE_Y - 0.15;
+                }
+            }
+
+            const lerpSpeed = Math.min(1, delta * 14);
+            rodPivot.rotation.x += (targetRotX - rodPivot.rotation.x) * lerpSpeed;
+            rodPivot.rotation.y += (targetRotY - rodPivot.rotation.y) * lerpSpeed;
+            rodPivot.rotation.z += (targetRotZ - rodPivot.rotation.z) * lerpSpeed;
+
+            if (fishingLine.visible) {
+                rodPivot.updateMatrix();
+                camera.updateMatrixWorld();
+                const tipWorld = ROD_TIP_LOCAL.clone();
+                tipWorld.applyMatrix4(rodPivot.matrix);
+                tipWorld.applyMatrix4(camera.matrixWorld);
+
+                const lp = fishingLine.geometry.attributes.position.array;
+                lp[0] = tipWorld.x;
+                lp[1] = tipWorld.y;
+                lp[2] = tipWorld.z;
+                lp[3] = bobber.position.x;
+                lp[4] = bobber.position.y;
+                lp[5] = bobber.position.z;
+                fishingLine.geometry.attributes.position.needsUpdate = true;
+            }
+
+            if (!uiBlocking && gameState === 'idle') {
+                const wantText = nearShop
+                    ? 'Druk op E om vissen te verkopen'
+                    : 'Druk op E om te casten';
+                const wantClass = nearShop ? 'shop-prompt' : '';
+                if (promptEl.textContent !== wantText ||
+                    promptEl.style.display !== 'block' ||
+                    promptEl.className !== wantClass) {
+                    promptEl.textContent = wantText;
+                    promptEl.style.display = 'block';
+                    promptEl.className = wantClass;
+                }
+            }
+
+            debugEl.textContent = `FPS: ${fps} | Staat: ${shopOpen ? 'winkel' : inventoryOpen ? 'rugtas' : gameState}`;
+
+            if (debugPanelVisible) updateDebugPanel();
+
+            renderer.setRenderTarget(renderTarget);
+            renderer.render(scene, camera);
+            renderer.setRenderTarget(null);
+            renderer.render(quadScene, quadCamera);
+        }
+
+        loadProgress();
+        updateCoinUI();
+        updateBackpackCount();
+        updateInventoryUI();
+        updateShopUI();
+
+        updateWaterGeometry(0);
+
+        setPrompt('Klik om te beginnen', true);
+        updateRenderTargetSize();
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            updateRenderTargetSize();
+        });
+    </script>
+</body>
+</html>
